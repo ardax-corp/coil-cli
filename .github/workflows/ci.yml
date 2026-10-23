@@ -1,0 +1,111 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A new push to a pull request cancels that PR's older runs. Runs on the
+# default branch are never cancelled once started.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# `actions: write` lets a failed job cancel the rest of its run.
+permissions:
+  contents: read
+  actions: write
+
+env:
+  CI: "true"
+
+jobs:
+  native:
+    name: native (${{ matrix.id }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: linux-gnu
+            os: ubuntu-latest
+          - id: macos
+            os: macos-latest
+          - id: windows-gnu
+            os: windows-latest
+            windows: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deps (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+
+      - name: Install deps (Windows)
+        if: matrix.windows
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            base-devel
+            mingw-w64-x86_64-toolchain
+
+      - name: Build artifact + smoke (glibc / macOS)
+        if: ${{ !matrix.windows }}
+        run: make smoke
+
+      - name: Build artifact + smoke (Windows gnu)
+        if: matrix.windows
+        shell: msys2 {0}
+        run: |
+          export PATH="$MINGW_PREFIX/bin:/usr/bin:$PATH"
+          make smoke
+
+      # Fail fast on pull requests: a failed job cancels the rest of the run,
+      # so a quick fix doesn't wait behind jobs that are already moot.
+      - name: Cancel the rest of the run
+        if: failure() && github.event_name == 'pull_request'
+        continue-on-error: true
+        shell: bash
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  test:
+    name: coil test (ubuntu)
+    runs-on: ubuntu-latest
+    needs: native
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deps
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+
+      # coil comes from the coil-lang `edge` release (a snapshot of its main,
+      # rebuilt after every green coil-lang CI run) instead of a source build.
+      - name: Install coil (edge)
+        id: coil
+        uses: ardax-corp/coil-lang/.github/actions/setup-coil@main
+        with:
+          stdlib: true
+
+      - name: Check formatting
+        run: coil fmt --check src tests
+
+      - name: Build native artifact
+        run: make
+
+      - name: Test
+        run: make test COIL_ROOTS='--root ${{ steps.coil.outputs.stdlib }}'
+
+      # Fail fast on pull requests: a failed job cancels the rest of the run,
+      # so a quick fix doesn't wait behind jobs that are already moot.
+      - name: Cancel the rest of the run
+        if: failure() && github.event_name == 'pull_request'
+        continue-on-error: true
+        shell: bash
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
