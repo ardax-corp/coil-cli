@@ -1,0 +1,107 @@
+use tests::assert;
+use io::open;
+use io::close;
+use io::file::write_text;
+use io::file::read_text;
+use io::fs::remove_file;
+use cli::prompt::{parse_confirm, confirm_label, fuzzy_match, Select, SelectKey, SelectOutcome, select_model, confirm_line, input_line, select_line};
+
+fn strs(string... xs) -> Vec<string> {
+    return xs;
+}
+
+test("confirm answers") {
+    assert!((parse_confirm("Y", false) ?? false) == true);
+    assert!((parse_confirm(" no ", true) ?? true) == false);
+    assert!((parse_confirm("", true) ?? false) == true);
+    assert!(
+        match parse_confirm("maybe", true) {
+            Option::None => true,
+            default => false,
+        },
+    );
+    assert!(confirm_label("Go?", true) == "Go? [Y/n] ");
+}
+
+test("fuzzy filter") {
+    assert!(fuzzy_match("cmt", "commit"));
+    assert!(fuzzy_match("CO", "commit"));
+    assert!(!fuzzy_match("tc", "commit"));
+    assert!(fuzzy_match("", "x"));
+}
+
+test("select moves, wraps and scrolls") {
+    let s = select_model(strs("a", "b", "c", "d", "e"), false, 2);
+    assert!(s.lines(20).len() == 2);
+    assert!(s.lines(20)[0] == "❯ a");
+    s.apply(SelectKey::Down);
+    s.apply(SelectKey::Down);
+    assert!(s.current() == 2);
+    assert!(s.offset == 1);
+    assert!(s.lines(20)[1] == "❯ c");
+    s.apply(SelectKey::End);
+    assert!(s.current() == 4);
+    s.apply(SelectKey::Down);
+    assert!(s.current() == 0);
+    s.apply(SelectKey::Up);
+    assert!(s.current() == 4);
+    s.apply(SelectKey::PageUp);
+    assert!(s.current() == 2);
+    assert!(s.apply(SelectKey::Submit) == SelectOutcome::Submit);
+    assert!(s.chosen()[0] == 2);
+}
+
+test("select filter") {
+    let s = select_model(strs("commit", "push", "checkout"), false, 5);
+    s.apply(SelectKey::FilterChar("c"));
+    s.apply(SelectKey::FilterChar("h"));
+    assert!(s.visible.len() == 1);
+    assert!(s.current() == 2);
+    s.apply(SelectKey::FilterChar("z"));
+    assert!(s.current() == -1);
+    assert!(s.apply(SelectKey::Submit) == SelectOutcome::Continue);
+    s.apply(SelectKey::FilterBackspace);
+    s.apply(SelectKey::FilterBackspace);
+    assert!(s.visible.len() == 2);
+    assert!(s.apply(SelectKey::Cancel) == SelectOutcome::Cancel);
+}
+
+test("multi select toggles") {
+    let s = select_model(strs("a", "b", "c"), true, 5);
+    s.apply(SelectKey::Toggle);
+    s.apply(SelectKey::Down);
+    s.apply(SelectKey::Down);
+    s.apply(SelectKey::Toggle);
+    let c = s.chosen();
+    assert!(c.len() == 2);
+    assert!(c[1] == 2);
+    assert!(s.lines(20)[0] == "  ◉ a");
+    assert!(s.lines(20)[1] == "  ○ b");
+    s.apply(SelectKey::ToggleAll);
+    assert!(s.chosen().len() == 3);
+    s.apply(SelectKey::ToggleAll);
+    assert!(s.chosen().len() == 0);
+}
+
+test("line runners read answers from a stream") {
+    write_text("prompt_in.txt", "maybe\ny\n\nsecond\n9\n2\n")?;
+    write_text("prompt_out.txt", "")?;
+    let input = open("prompt_in.txt", "r")?;
+    let out = open("prompt_out.txt", "w")?;
+    assert!(confirm_line(input, out, "Go?", false));
+    assert!((input_line(input, out, "Name?", "anon") ?? "") == "anon");
+    assert!((input_line(input, out, "Name?", "anon") ?? "") == "second");
+    assert!((select_line(input, out, "Pick", strs("x", "y")) ?? -1) == 1);
+    assert!(
+        match input_line(input, out, "More?", "") {
+            Option::None => true,
+            default => false,
+        },
+    );
+    close(input)?;
+    close(out)?;
+    let shown = read_text("prompt_out.txt")?;
+    assert!(shown.len() > 0);
+    remove_file("prompt_in.txt")?;
+    remove_file("prompt_out.txt")?;
+}
