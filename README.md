@@ -48,7 +48,20 @@ coil --root ../coil-stdlib/src --root ../coil-cli/src main.hy
 | `cli::prompt` | `confirm`, `input`, `password`, `select`, `multi_select` on a terminal; the fuzzy-filtered `Select` model and `select_key_for`; line-based `*_line` runners used when stdin is piped |
 | `cli::screen` | cell `Buffer` (wide chars, boxes, fills), `render_diff` / `render_full`, double-buffered `Screen` |
 
-More are on the way; the plan is in [docs/design.md](docs/design.md).
+## Examples
+
+| File | Shows |
+|------|-------|
+| [examples/hello.hy](examples/hello.hy) | `cli::args` with help and errors, `Painter` colours, a progress bar |
+| [examples/ask.hy](examples/ask.hy) | `confirm`, `input`, `select`, `multi_select` and a `read_line` REPL; pipe answers in to see the fallbacks |
+| [examples/bounce.hy](examples/bounce.hy) | a full-screen program: alternate screen, `Screen` diff rendering, timed `Events`, resizes |
+
+```bash
+coil --allow-env --allow-exit --root ../coil-stdlib/src --root src examples/hello.hy -- --name Ada -n 3
+make examples COIL_ROOTS='--root ../coil-stdlib/src'   # compile them all
+```
+
+A TUI layer (layout, widgets, focus) is planned as a separate package on top of `cli::screen` and `cli::events`; see [docs/design.md](docs/design.md).
 
 ## License
 

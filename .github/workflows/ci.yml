@@ -45,6 +45,9 @@ jobs:
       - name: Test
         run: make test COIL_ROOTS='--root ${{ steps.coil.outputs.stdlib }}'
 
+      - name: Compile examples
+        run: make examples COIL_ROOTS='--root ${{ steps.coil.outputs.stdlib }}'
+
       # Fail fast on pull requests: a failed job cancels the rest of the run,
       # so a quick fix doesn't wait behind jobs that are already moot.
       - name: Cancel the rest of the run
