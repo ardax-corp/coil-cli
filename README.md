@@ -43,6 +43,9 @@ coil --root ../coil-stdlib/src --root ../coil-cli/src --ffi-search-path ../coil-
 | Module | Status |
 |--------|--------|
 | `cli::term` | tty checks, size, raw mode, timed reads, resize, colour level |
+| `cli::ansi` | cursor, clear, scroll, alt screen, mouse/paste/focus modes, title, hyperlinks |
+| `cli::style` | `Color` (16 / 256 / RGB), `Style`, `Painter`, downgrade by colour level, `strip` |
+| `cli::width` | display width (wide, combining, emoji), `truncate`, `pad_*`, `center`, `wrap` |
 
 More are on the way; the plan is in [docs/design.md](docs/design.md).
 
