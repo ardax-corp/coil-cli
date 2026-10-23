@@ -1,5 +1,14 @@
 use tests::assert;
-use cli::line::{Edit, Outcome, Editor, History, editor, history, units};
+use cli::line::Edit;
+use cli::line::Outcome;
+use cli::line::Editor;
+use cli::line::History;
+use cli::line::editor;
+use cli::line::history;
+use cli::line::units;
+use cli::line::edit_for;
+use cli::keys::decode_all;
+use string::to_bytes;
 
 fn ed() -> Editor {
     return editor(history(100));
@@ -132,4 +141,43 @@ test("view scrolls to the cursor and masks") {
 
 test("units") {
     assert!(units("ae\u{301}日").len() == 3);
+}
+
+/// Feed raw terminal bytes through the default bindings.
+fn keyed(Editor e, string bytes) {
+    for ev in decode_all(to_bytes(bytes)) {
+        match edit_for(ev) {
+            Option::Some(a) => {
+                e.apply(a);
+            },
+            Option::None => {},
+        }
+    }
+}
+
+test("default key bindings") {
+    let e = ed();
+    keyed(e, "hello world");
+    assert!(e.text() == "hello world");
+    keyed(e, "\x17");
+    assert!(e.text() == "hello ");
+    keyed(e, "\x01X\x05!");
+    assert!(e.text() == "Xhello !");
+    keyed(e, "\e[D\e[D\x7f");
+    assert!(e.text() == "Xhell !");
+    keyed(e, "\x0b");
+    assert!(e.text() == "Xhell");
+    keyed(e, "\x19\x19");
+    assert!(e.text() == "Xhell ! !");
+    keyed(e, "\e[200~pasted\e[201~");
+    assert!(e.text() == "Xhell ! !pasted");
+}
+
+test("binding outcomes") {
+    let e = ed();
+    let evs = decode_all(to_bytes("\r\x03\x04"));
+    assert!(e.apply(edit_for(evs[0]) ?? Edit::Clear) == Outcome::Submit);
+    assert!(e.apply(edit_for(evs[1]) ?? Edit::Clear) == Outcome::Cancel);
+    assert!(e.apply(edit_for(evs[2]) ?? Edit::Clear) == Outcome::Eof);
+    assert!(edit_for(decode_all(to_bytes("\e[I"))[0]).is_none());
 }
