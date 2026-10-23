@@ -11,7 +11,7 @@ Pure Coil, no native code: terminal state (isatty, raw mode, size, timed reads, 
 ## Quick start
 
 ```bash
-make test     # coil test harness (needs coil on PATH; pass COIL_ROOTS='--root <stdlib>/src')
+make test     # coil test harness (needs coil on PATH; pass COIL_ROOTS='--root <stdlib>/src'; writes scratch files)
 make fmt      # format check
 ```
 
@@ -42,6 +42,7 @@ coil --root ../coil-stdlib/src --root ../coil-cli/src main.hy
 | `cli::args` | declarative parser: flags (counted), options, defaults, repeatable options, positionals, rest, subcommands, `--`, bundles, generated help, "did you mean" |
 | `cli::progress` | progress bar (smooth or ASCII, rate, ETA) and spinner, redrawn in place and throttled; `human_bytes`, `human_duration` |
 | `cli::line` | line-editor model: `Edit` actions, kill/yank, word moves, transpose, history with draft, scrolled and masked `view` |
+| `cli::prompt` | `parse_confirm`, fuzzy-filtered single/multi `Select` model, line-based `confirm_line` / `input_line` / `select_line` for pipes |
 | `cli::screen` | cell `Buffer` (wide chars, boxes, fills), `render_diff` / `render_full`, double-buffered `Screen` |
 
 More are on the way; the plan is in [docs/design.md](docs/design.md).
