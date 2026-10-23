@@ -41,6 +41,8 @@ coil --root ../coil-stdlib/src --root ../coil-cli/src main.hy
 | `cli::width` | display width (wide, combining, emoji), `truncate`, `pad_*`, `center`, `wrap` |
 | `cli::args` | declarative parser: flags (counted), options, defaults, repeatable options, positionals, rest, subcommands, `--`, bundles, generated help, "did you mean" |
 | `cli::progress` | progress bar (smooth or ASCII, rate, ETA) and spinner, redrawn in place and throttled; `human_bytes`, `human_duration` |
+| `cli::line` | line-editor model: `Edit` actions, kill/yank, word moves, transpose, history with draft, scrolled and masked `view` |
+| `cli::screen` | cell `Buffer` (wide chars, boxes, fills), `render_diff` / `render_full`, double-buffered `Screen` |
 
 More are on the way; the plan is in [docs/design.md](docs/design.md).
 
