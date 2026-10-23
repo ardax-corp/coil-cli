@@ -17,13 +17,16 @@ make fmt      # format check
 
 ```coil
 use cli::style::{Painter, fg, red};
-use cli::color::{ColorLevel};
-use cli::width::{truncate};
-use io::sync::{println};
+use cli::color::ColorLevel;
+use cli::width::truncate;
+use io::stdout;
+use io::sync::write_all;
+use string::to_bytes;
 
 fn main() {
     let p = Painter::at(ColorLevel::Basic);
-    println(p.paint(fg(red()).bold(), truncate("something went wrong", 12, "…")))?;
+    let line = p.paint(fg(red()).bold(), truncate("something went wrong", 12, "…"));
+    let _ = write_all(stdout(), to_bytes(line + "\n"));
 }
 ```
 
