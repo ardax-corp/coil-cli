@@ -1,0 +1,9 @@
+*.o
+*.so
+*.dylib
+*.dll
+*.hyc
+smoke
+smoke.bin
+target/
+coil.lock
