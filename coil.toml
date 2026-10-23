@@ -1,0 +1,9 @@
+[package]
+name = "cli"
+version = "0.1.0"
+
+[module]
+roots = ["./src"]
+
+[ffi]
+search_paths = ["./native"]
