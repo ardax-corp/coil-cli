@@ -1,5 +1,5 @@
 use tests::assert;
-use cli::term::ColorLevel;
+use cli::color::ColorLevel;
 use cli::style::Color;
 use cli::style::Style;
 use cli::style::Painter;

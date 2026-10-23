@@ -1,7 +1,7 @@
 // Colours and text attributes as SGR escapes, downgraded to what the
-// terminal supports (`cli::term::ColorLevel`), and `strip` to remove them.
+// terminal supports (`cli::color::ColorLevel`), and `strip` to remove them.
 use string::{format, to_bytes, from_bytes};
-use cli::term::{ColorLevel, color_level};
+use cli::color::{ColorLevel, color_level_from_env};
 
 enum Color {
     /// The terminal's own foreground / background.
@@ -475,7 +475,7 @@ fn paint_at(Style s, string text, ColorLevel level) -> string {
     return on + text + "\e[0m";
 }
 
-/// Paints at a fixed colour level. `Painter::detect()` reads the
+/// Paints at a fixed colour level. `Painter::from_env(tty)` reads the
 /// environment once (needs `--allow-env`).
 class Painter {
     pub level: ColorLevel,
@@ -486,8 +486,10 @@ impl Painter {
         return new Painter(level);
     }
 
-    pub static fn detect() -> Painter {
-        return new Painter(color_level());
+    /// Level from the environment for a stream that is (`tty`) or is
+    /// not a terminal. Needs `--allow-env`.
+    pub static fn from_env(bool tty) -> Painter {
+        return new Painter(color_level_from_env(tty));
     }
 
     pub fn enabled() -> bool {
