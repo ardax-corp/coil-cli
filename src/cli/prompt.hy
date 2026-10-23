@@ -1,8 +1,9 @@
-// Prompts: confirm, input with validation, and single / multi select.
+// Prompts: confirm, input, password, and single / multi select.
 // The models are terminal-free (`Select` + `SelectKey`, answer parsers);
 // the `*_line` runners read whole lines from a stream, which works on
-// pipes and scripts, and are what interactive runners fall back to when
-// stdin is not a terminal.
+// pipes and scripts; `confirm`, `input`, `password`, `select` and
+// `multi_select` run in raw mode on a terminal and fall back to the line
+// runners when stdin is not one.
 use io::Stream;
 use io::sync::write_all;
 use io::sync::read_line;
@@ -12,9 +13,24 @@ use text::{trim, to_lower};
 use cli::width::truncate;
 use cli::width::width;
 use cli::keys::Event;
-use cli::keys::KeyEvent;
-use cli::keys::describe_key;
-use cli::keys::cp_string;
+use cli::keys::is_key;
+use cli::line::LineInput;
+use cli::line::editor;
+use cli::line::history;
+use cli::line::read_line_masked;
+use cli::term::raw_mode;
+use cli::term::put;
+use cli::term::size_or;
+use cli::events::events;
+use cli::ansi::clear_below;
+use cli::ansi::hide_cursor;
+use cli::ansi::show_cursor;
+use cli::ansi::up;
+use io::IoError;
+use io::stdin;
+use io::stdout;
+use io::tty::is_tty;
+use cli::keys::{KeyEvent, describe_key, cp_string};
 
 /// `y`/`yes`/`n`/`no` (any case); an empty answer is `fallback`; anything
 /// else is `None` (ask again).
@@ -298,7 +314,6 @@ fn confirm_line(Stream input, Stream out, string question, bool fallback) -> boo
             },
         }
     }
-    return fallback;
 }
 
 /// Ask for a line; an empty answer is `fallback`. `None` at end of input.
@@ -340,7 +355,6 @@ fn select_line(Stream input, Stream out, string question, Vec<string> items) -> 
             return Option::Some(n - 1);
         }
     }
-    return Option::None;
 }
 
 /// The default binding for an input event in a `Select`: arrows, j/k
@@ -395,4 +409,291 @@ fn select_key_for_key(KeyEvent k) -> Option<SelectKey> {
         return Option::Some(SelectKey::Cancel);
     }
     return Option::None;
+}
+
+/// Ask a yes/no question. On a terminal one key answers (y / n, Enter for
+/// `fallback`); otherwise a line is read. `None` when cancelled (Ctrl-C,
+/// Esc) or at end of input.
+fn confirm(string question, bool fallback) -> Result<Option<bool>, IoError> {
+    if !is_tty(stdin()) {
+        return Option::Some(confirm_line(stdin(), stdout(), question, fallback));
+    }
+    let out = stdout();
+    let raw = raw_mode(stdin())?;
+    let r = confirm_keys(out, question, fallback);
+    raw.leave()?;
+    return r?;
+}
+
+fn confirm_keys(Stream out, string question, bool fallback) -> Result<Option<bool>, IoError> {
+    put(out, confirm_label(question, fallback))?;
+    let ev = events();
+    while true {
+        let got = ev.next(-1)?;
+        match got {
+            Option::None => {
+                if ev.eof {
+                    put(out, "\r\n")?;
+                    return Option::None;
+                }
+            },
+            Option::Some(e) => {
+                if is_key(e, "y") || is_key(e, "shift+y") || is_key(e, "Y") {
+                    put(out, "yes\r\n")?;
+                    return Option::Some(true);
+                }
+                if is_key(e, "n") || is_key(e, "shift+n") || is_key(e, "N") {
+                    put(out, "no\r\n")?;
+                    return Option::Some(false);
+                }
+                if is_key(e, "enter") {
+                    if fallback {
+                        put(out, "yes\r\n")?;
+                    } else {
+                        put(out, "no\r\n")?;
+                    }
+                    return Option::Some(fallback);
+                }
+                if is_key(e, "ctrl+c") || is_key(e, "esc") || is_key(e, "ctrl+d") {
+                    put(out, "^C\r\n")?;
+                    return Option::None;
+                }
+            },
+        }
+    }
+}
+
+fn ask(string question, string fallback, string mask) -> Result<Option<string>, IoError> {
+    let label = question + " ";
+    if fallback != "" && mask == "" {
+        label = question + " (" + fallback + ") ";
+    }
+    let got = read_line_masked(editor(history(0)), label, mask)?;
+    return match got {
+        LineInput::Line(l) => {
+            if l == "" {
+                return Option::Some(fallback);
+            }
+            return Option::Some(l);
+        },
+        default => Option::None,
+    };
+}
+
+/// Ask for a line, edited in place on a terminal; an empty answer is
+/// `fallback`. `None` when cancelled or at end of input.
+fn input(string question, string fallback) -> Result<Option<string>, IoError> {
+    return ask(question, fallback, "")?;
+}
+
+/// Ask for a secret; each character shows as `*`. `None` when cancelled
+/// or at end of input.
+fn password(string question) -> Result<Option<string>, IoError> {
+    return ask(question, "", "*")?;
+}
+
+/// Lines for the whole select block: the question (with the filter) and
+/// the list, or a note when the filter hides everything.
+fn select_block(string question, Select s, int cols) -> Vec<string> {
+    let out: Vec<string> = Vec::new();
+    let head = question;
+    if s.filter != "" {
+        head = question + "  " + s.filter;
+    }
+    out.push(truncate(head, cols, "…"));
+    let rows = s.lines(cols);
+    if rows.len() == 0 {
+        out.push("  (no matches)");
+    }
+    for r in rows {
+        out.push(r);
+    }
+    return out;
+}
+
+fn draw_block(Stream out, Vec<string> lines, int drawn) -> Result<int, IoError> {
+    let s = "\r";
+    if drawn > 1 {
+        s = s + up(drawn - 1);
+    }
+    s = s + clear_below();
+    let i = 0;
+    while i < lines.len() {
+        if i > 0 {
+            s = s + "\r\n";
+        }
+        s = s + lines[i];
+        i++;
+    }
+    put(out, s)?;
+    return lines.len();
+}
+
+fn run_select(Stream out, string question, Select s) -> Result<bool, IoError> {
+    let sz = size_or(out, 80, 24);
+    let (cols, rows) = sz;
+    if s.height > rows - 2 {
+        s.height = rows - 2;
+    }
+    if s.height < 1 {
+        s.height = 1;
+    }
+    put(out, hide_cursor())?;
+    let drawn = draw_block(out, select_block(question, s, cols - 1), 0)?;
+    let ev = events();
+    let done = false;
+    let ok = false;
+    while !done {
+        let got = ev.next(-1)?;
+        match got {
+            Option::None => {
+                if ev.eof {
+                    done = true;
+                }
+            },
+            Option::Some(Event::Resize(c, _)) => {
+                cols = c;
+            },
+            Option::Some(e) => {
+                match select_key_for(e) {
+                    Option::Some(k) => {
+                        let o = s.apply(k);
+                        if o == SelectOutcome::Submit {
+                            done = true;
+                            ok = true;
+                        } else if o == SelectOutcome::Cancel {
+                            done = true;
+                        }
+                    },
+                    Option::None => {},
+                }
+            },
+        }
+        if !done {
+            drawn = draw_block(out, select_block(question, s, cols - 1), drawn)?;
+        }
+    }
+    let summary = question + " ";
+    if ok {
+        let names = "";
+        for i in s.chosen() {
+            if names != "" {
+                names = names + ", ";
+            }
+            names = names + s.items[i];
+        }
+        summary = summary + names;
+    } else {
+        summary = summary + "^C";
+    }
+    draw_block(out, strs1(truncate(summary, cols - 1, "…")), drawn)?;
+    put(out, "\r\n" + show_cursor())?;
+    return ok;
+}
+
+fn strs1(string x) -> Vec<string> {
+    let v: Vec<string> = Vec::new();
+    v.push(x);
+    return v;
+}
+
+fn select_raw(string question, Select s) -> Result<bool, IoError> {
+    let out = stdout();
+    let raw = raw_mode(stdin())?;
+    let r = run_select(out, question, s);
+    if !r.is_ok() {
+        let _ = put(out, show_cursor());
+    }
+    raw.leave()?;
+    return r?;
+}
+
+/// Pick one of `items` with the arrow keys (type to filter). Falls back
+/// to a numbered list when stdin is not a terminal. `None` when
+/// cancelled or at end of input.
+fn select(string question, Vec<string> items) -> Result<Option<int>, IoError> {
+    if items.len() == 0 {
+        return Option::None;
+    }
+    if !is_tty(stdin()) {
+        return select_line(stdin(), stdout(), question, items);
+    }
+    let s = select_model(items, false, 10);
+    if !select_raw(question, s)? {
+        return Option::None;
+    }
+    return Option::Some(s.current());
+}
+
+/// Pick any of `items` (space toggles, Ctrl-A toggles all, Enter
+/// accepts). Off a terminal, a line of numbers separated by spaces or
+/// commas is read. `None` when cancelled or at end of input.
+fn multi_select(string question, Vec<string> items) -> Result<Option<Vec<int>>, IoError> {
+    if !is_tty(stdin()) {
+        return multi_select_line(stdin(), stdout(), question, items);
+    }
+    let s = select_model(items, true, 10);
+    if !select_raw(question, s)? {
+        return Option::None;
+    }
+    return Option::Some(s.chosen());
+}
+
+/// Parse `1 3,4` into 0-based indices below `n`; `None` if any part is
+/// not a number in 1..=n.
+fn parse_choices(string answer, int n) -> Option<Vec<int>> {
+    let out: Vec<int> = Vec::new();
+    let cur = 0;
+    let digits = 0;
+    for b in to_bytes(answer + " ") {
+        let c = b as int;
+        if c >= 48 && c <= 57 {
+            cur = cur * 10 + (c - 48);
+            digits++;
+        } else if c == 32 || c == 44 || c == 9 {
+            if digits > 0 {
+                if cur < 1 || cur > n {
+                    return Option::None;
+                }
+                out.push(cur - 1);
+                cur = 0;
+                digits = 0;
+            }
+        } else {
+            return Option::None;
+        }
+    }
+    return Option::Some(out);
+}
+
+/// Pick several of `items` by number from a stream.
+fn multi_select_line(
+    Stream input,
+    Stream out,
+    string question,
+    Vec<string> items,
+) -> Result<Option<Vec<int>>, IoError> {
+    say(out, question + "\n");
+    let i = 0;
+    while i < items.len() {
+        say(out, format("  %i) %s\n", i + 1, items[i]));
+        i++;
+    }
+    while true {
+        say(out, format("Choose from 1-%i (space separated): ", items.len()));
+        let got = read_line(input)?;
+        match got {
+            Option::None => {
+                return Option::None;
+            },
+            Option::Some(l) => {
+                match parse_choices(l, items.len()) {
+                    Option::Some(v) => {
+                        return Option::Some(v);
+                    },
+                    Option::None => {},
+                }
+            },
+        }
+    }
 }

@@ -19,18 +19,15 @@ trees. Those belong in a separate TUI package on top of `cli::screen`
 
 ## Terminal access
 
-Coil has `io::stdin/stdout/stderr` streams, `env::args`/`env::var`,
-`clock::mono_nanos`/`sleep_ms`, and `string`/`text` helpers. It has no
-`isatty`, no termios, no window size and no signals yet. Those are OS
-calls, and they are being added to coil-lang itself as host natives
-(`io::tty`, coil-lang issue 1982) so that this package stays pure
-Coil and programs need no `--allow-dload`. coil-cli ships no native code.
+The OS calls a terminal needs (isatty, raw mode, window size, timed
+reads, resize notification) are coil-lang host natives in `io::tty`, so
+this package stays pure Coil and programs need no `--allow-dload`.
+coil-cli ships no native code.
 
-`cli::term` is a thin wrapper over `io::tty` and lands once it exists.
-Until then the pure modules (escapes, styles, widths, key decoding, the
-line-editor model, argument parsing, progress rendering, the cell buffer)
-are built and tested on their own; the parts that run against a real
-terminal plug in afterwards.
+`cli::term` is a thin wrapper over `io::tty`; `cli::events` reads and
+decodes on top of it. Everything else works on strings and is tested on
+its own, and the terminal runners fall back to plain line reads when
+stdin is not a terminal.
 
 Reading in raw mode uses a timed read (`io::tty::read_timeout`), because it
 needs a timeout to tell a lone Esc from the start of a sequence.
@@ -68,9 +65,10 @@ default `stdout()`) so tests can point them at a file.
 
 ## Safety
 
-The runtime restores a raw terminal when the program ends (exit, panic),
-as that issue asks. `RawMode` also restores it in its `drop`, and programs
-should `defer` `leave()`, because `drop` is a GC finaliser and runs late.
+The runtime restores a raw terminal when the program ends (exit, panic,
+SIGINT/SIGTERM/SIGHUP/SIGQUIT). Code that enters raw mode calls
+`RawMode.leave()` on every path, errors included; the prompts and
+`read_line` do this themselves.
 
 ## Scope split with a TUI package
 

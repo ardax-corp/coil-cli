@@ -2,7 +2,7 @@
 
 Building blocks for command-line and terminal programs in [Coil](https://github.com/ardax-corp/coil-lang): terminal state and size, raw mode, colour detection, styled output, key and mouse input, a line editor and prompts, argument parsing, progress bars, and a diffing cell buffer for full-screen programs. Package name: `cli`.
 
-Pure Coil, no native code: terminal state (isatty, raw mode, size, timed reads, resize) comes from coil-lang's `io::tty` host natives (coil-lang issue 1982, in progress). See [docs/design.md](docs/design.md) for the layout and plan.
+Pure Coil, no native code: terminal state (isatty, raw mode, size, timed reads, resize) comes from coil-lang's `io::tty` host natives, so no `--allow-dload` is needed. See [docs/design.md](docs/design.md) for the layout and plan.
 
 ## Requirements
 
@@ -35,6 +35,8 @@ coil --root ../coil-stdlib/src --root ../coil-cli/src main.hy
 
 | Module | Status |
 |--------|--------|
+| `cli::term` | `tty`, `size_or`, `columns`, `RawMode` (`raw_mode`, `leave`), `read_bytes` with a timeout, `was_resized` |
+| `cli::events` | `Events.next(timeout)`: decoded input with the Esc timeout and `Resize` events, from stdin or any stream |
 | `cli::color` | `ColorLevel` and detection from `NO_COLOR`, `FORCE_COLOR`, `COLORTERM`, `TERM` |
 | `cli::ansi` | cursor, clear, scroll, alt screen, mouse/paste/focus modes, title, hyperlinks |
 | `cli::style` | `Color` (16 / 256 / RGB), `Style`, `Painter`, downgrade by colour level, `strip` |
@@ -42,8 +44,8 @@ coil --root ../coil-stdlib/src --root ../coil-cli/src main.hy
 | `cli::args` | declarative parser: flags (counted), options, defaults, repeatable options, positionals, rest, subcommands, `--`, bundles, generated help, "did you mean" |
 | `cli::progress` | progress bar (smooth or ASCII, rate, ETA) and spinner, redrawn in place and throttled; `human_bytes`, `human_duration` |
 | `cli::keys` | `Event` (keys with modifiers, SGR mouse, bracketed paste, focus, cursor reports) and an incremental `Decoder` for CSI / SS3 / xterm / kitty-basic input |
-| `cli::line` | line-editor model: `Edit` actions, kill/yank, word moves, transpose, history with draft, scrolled and masked `view` |
-| `cli::prompt` | `parse_confirm`, fuzzy-filtered single/multi `Select` model, line-based `confirm_line` / `input_line` / `select_line` for pipes |
+| `cli::line` | line editor: `Edit` model (kill/yank, word moves, transpose, history with draft, scrolled and masked `view`), `edit_for` key bindings, and `read_line` in raw mode (plain stdin when piped) |
+| `cli::prompt` | `confirm`, `input`, `password`, `select`, `multi_select` on a terminal; the fuzzy-filtered `Select` model and `select_key_for`; line-based `*_line` runners used when stdin is piped |
 | `cli::screen` | cell `Buffer` (wide chars, boxes, fills), `render_diff` / `render_full`, double-buffered `Screen` |
 
 More are on the way; the plan is in [docs/design.md](docs/design.md).
