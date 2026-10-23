@@ -1,5 +1,5 @@
 use tests::assert;
-use cli::term::{ColorLevel, Size, detect_color_level, is_tty, is_raw, raw_mode, read_bytes, resized, size, size_or, TermError};
+use cli::color::{ColorLevel, detect_color_level};
 
 fn none() -> Option<string> {
     return Option::None;
@@ -7,41 +7,6 @@ fn none() -> Option<string> {
 
 fn some(string s) -> Option<string> {
     return Option::Some(s);
-}
-
-test("not raw until asked") {
-    assert!(!is_raw());
-}
-
-test("size_or falls back without a terminal") {
-    let s = size_or(80, 24);
-    assert!(s.cols > 0);
-    assert!(s.rows > 0);
-}
-
-test("raw mode needs a terminal") {
-    if is_tty(0) {
-        return;
-    }
-    let r = raw_mode();
-    assert!(
-        match r {
-            Result::Err(TermError::NotATty) => true,
-            default => false,
-        },
-    );
-}
-
-test("read_bytes at end of input") {
-    let r = read_bytes(10)?;
-    assert!(match r {
-        Option::None => true,
-        Option::Some(b) => b.len() == 0,
-    });
-}
-
-test("resized is false without a resize") {
-    assert!(!resized());
 }
 
 test("NO_COLOR wins") {
