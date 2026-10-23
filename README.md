@@ -39,6 +39,7 @@ coil --root ../coil-stdlib/src --root ../coil-cli/src main.hy
 | `cli::ansi` | cursor, clear, scroll, alt screen, mouse/paste/focus modes, title, hyperlinks |
 | `cli::style` | `Color` (16 / 256 / RGB), `Style`, `Painter`, downgrade by colour level, `strip` |
 | `cli::width` | display width (wide, combining, emoji), `truncate`, `pad_*`, `center`, `wrap` |
+| `cli::args` | declarative parser: flags (counted), options, defaults, repeatable options, positionals, rest, subcommands, `--`, bundles, generated help, "did you mean" |
 
 More are on the way; the plan is in [docs/design.md](docs/design.md).
 
