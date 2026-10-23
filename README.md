@@ -40,6 +40,7 @@ coil --root ../coil-stdlib/src --root ../coil-cli/src main.hy
 | `cli::style` | `Color` (16 / 256 / RGB), `Style`, `Painter`, downgrade by colour level, `strip` |
 | `cli::width` | display width (wide, combining, emoji), `truncate`, `pad_*`, `center`, `wrap` |
 | `cli::args` | declarative parser: flags (counted), options, defaults, repeatable options, positionals, rest, subcommands, `--`, bundles, generated help, "did you mean" |
+| `cli::progress` | progress bar (smooth or ASCII, rate, ETA) and spinner, redrawn in place and throttled; `human_bytes`, `human_duration` |
 
 More are on the way; the plan is in [docs/design.md](docs/design.md).
 
