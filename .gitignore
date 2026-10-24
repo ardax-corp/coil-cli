@@ -1,3 +1,4 @@
 *.hyc
 target/
 coil.lock
+.examples/

@@ -1,0 +1,128 @@
+// The terminal itself, over coil-lang's `io::tty`: whether a stream is a
+// terminal, its size, raw mode and timed reads. Everything that needs a
+// real terminal goes through here; the other modules work on strings.
+use io::Stream;
+use io::IoError;
+use io::stdin;
+use io::stdout;
+use io::stderr;
+use io::sync::write_all;
+use io::tty::enable_vt;
+use io::tty::enter_raw;
+use io::tty::is_raw;
+use io::tty::is_tty;
+use io::tty::leave_raw;
+use io::tty::read_timeout;
+use io::tty::resized;
+use io::tty::size;
+use string::to_bytes;
+
+/// Whether `s` is a terminal.
+fn tty(Stream s) -> bool {
+    return is_tty(s);
+}
+
+fn stdin_is_tty() -> bool {
+    return is_tty(stdin());
+}
+
+fn stdout_is_tty() -> bool {
+    return is_tty(stdout());
+}
+
+fn stderr_is_tty() -> bool {
+    return is_tty(stderr());
+}
+
+/// `(cols, rows)` of the terminal behind `s` (or behind another standard
+/// stream when `s` is piped), else `(cols, rows)` as given.
+fn size_or(Stream s, int cols, int rows) -> (int, int) {
+    return match size(s) {
+        Result::Ok(sz) => sz,
+        Result::Err(_) => (cols, rows),
+    };
+}
+
+/// Terminal columns, 80 when there is no terminal.
+fn columns() -> int {
+    let (c, _) = size_or(stdout(), 80, 24);
+    return c;
+}
+
+/// `true` once per window resize since the last call.
+fn was_resized() -> bool {
+    return resized();
+}
+
+/// Turn on ANSI escape handling for `s` (Windows consoles); `true` when
+/// escapes can be written.
+fn enable_ansi(Stream s) -> bool {
+    return is_tty(s) && enable_vt(s);
+}
+
+/// Raw mode on a terminal. Leave it with `leave()`; the runtime also
+/// restores the terminal if the program ends (exit, panic, signal) while
+/// still raw.
+class RawMode {
+    pub input: Stream,
+    pub active: bool,
+}
+
+/// Raw mode with the signal keys and output processing chosen.
+fn raw_mode_with(Stream input, bool keep_signals, bool keep_output) -> Result<RawMode, IoError> {
+    enter_raw(input, keep_signals, keep_output)?;
+    return new RawMode(input, true);
+}
+
+/// Raw mode on `input` with Ctrl-C/Ctrl-Z delivered as keys and output
+/// sent as is (write "\r\n"), as full-screen programs and line editors
+/// want. `Err(IoError::NotATerminal)` when `input` is not a terminal.
+fn raw_mode(Stream input) -> Result<RawMode, IoError> {
+    return raw_mode_with(input, false, false)?;
+}
+
+impl RawMode {
+    /// Restore the terminal. Safe to call more than once.
+    pub fn leave() -> Result<(), IoError> {
+        if self.active {
+            self.active = false;
+            leave_raw(self.input)?;
+        }
+        return;
+    }
+
+    pub fn is_active() -> bool {
+        return self.active && is_raw(self.input);
+    }
+}
+
+/// Wait up to `timeout_ms` (negative: for ever) and read at most `max`
+/// bytes. `Some([])` when the time passed or a resize cut the wait short,
+/// `None` at end of input.
+fn read_bytes(Stream s, int max, int timeout_ms) -> Result<Option<Vec<byte>>, IoError> {
+    let buf: Vec<byte> = Vec::new();
+    let i = 0;
+    while i < max {
+        buf.push(0 as byte);
+        i++;
+    }
+    let got = read_timeout(s, buf, timeout_ms)?;
+    return match got {
+        Option::None => Option::None,
+        Option::Some(n) => {
+            let out: Vec<byte> = Vec::new();
+            let j = 0;
+            while j < n {
+                out.push(buf[j]);
+                j++;
+            }
+            return Option::Some(out);
+        },
+    };
+}
+
+/// Write `text` to `out`.
+fn put(Stream out, string text) -> Result<(), IoError> {
+    write_all(out, to_bytes(text))?;
+    return;
+}

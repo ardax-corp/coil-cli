@@ -1,6 +1,6 @@
-// Line-editor model: a text buffer with a cursor, kill/yank, word moves
-// and history, driven by `Edit` actions. Terminal-free; a runner maps key
-// events to actions and draws `render()`.
+// Line editor: a terminal-free model (a text buffer with a cursor,
+// kill/yank, word moves and history, driven by `Edit` actions), default
+// key bindings (`edit_for`), and `read_line`, which runs it in raw mode.
 use string::{to_bytes, slice_bytes};
 use cli::width::char_width;
 use cli::width::decode_at;
@@ -10,6 +10,20 @@ use cli::keys::Event;
 use cli::keys::Key;
 use cli::keys::KeyEvent;
 use cli::keys::describe_key;
+use cli::ansi::enable_paste;
+use cli::ansi::disable_paste;
+use cli::ansi::right;
+use cli::term::RawMode;
+use cli::term::raw_mode;
+use cli::term::put;
+use cli::term::size_or;
+use cli::events::Events;
+use cli::events::events;
+use io::Stream;
+use io::IoError;
+use io::stdin;
+use io::stdout;
+use io::tty::is_tty;
 use cli::keys::cp_string;
 
 enum Edit {
@@ -477,4 +491,98 @@ fn edit_for_key(KeyEvent k) -> Option<Edit> {
         return Option::Some(Edit::Insert("\t"));
     }
     return Option::None;
+}
+
+/// What `read_line` got.
+enum LineInput {
+    Line(string),
+    /// Ctrl-C (or Esc).
+    Cancelled,
+    /// End of input (Ctrl-D on an empty line, or stdin closed).
+    Eof,
+}
+
+fn draw_line(Stream out, Editor ed, string prompt, string mask, int cols) -> Result<(), IoError> {
+    let pw = width(prompt);
+    let avail = cols - pw - 1;
+    if avail < 1 {
+        avail = 1;
+    }
+    let v = ed.view(avail, mask);
+    let (text, ccol) = v;
+    put(out, "\r" + prompt + text + "\e[K\r" + right(pw + ccol))?;
+    return;
+}
+
+fn edit_loop(Editor ed, string prompt, string mask) -> Result<LineInput, IoError> {
+    let out = stdout();
+    let ev = events();
+    let sz = size_or(out, 80, 24);
+    let (cols, _) = sz;
+    put(out, enable_paste())?;
+    draw_line(out, ed, prompt, mask, cols)?;
+    while true {
+        let got = ev.next(-1)?;
+        match got {
+            Option::None => {
+                if ev.eof {
+                    put(out, disable_paste() + "\r\n")?;
+                    return LineInput::Eof;
+                }
+            },
+            Option::Some(Event::Resize(c, _)) => {
+                cols = c;
+                draw_line(out, ed, prompt, mask, cols)?;
+            },
+            Option::Some(e) => {
+                match edit_for(e) {
+                    Option::Some(action) => {
+                        let o = ed.apply(action);
+                        if o == Outcome::Submit {
+                            put(out, disable_paste() + "\r\n")?;
+                            return LineInput::Line(ed.take());
+                        }
+                        if o == Outcome::Cancel {
+                            ed.apply(Edit::Clear);
+                            put(out, disable_paste() + "^C\r\n")?;
+                            return LineInput::Cancelled;
+                        }
+                        if o == Outcome::Eof {
+                            put(out, disable_paste() + "\r\n")?;
+                            return LineInput::Eof;
+                        }
+                        draw_line(out, ed, prompt, mask, cols)?;
+                    },
+                    Option::None => {},
+                }
+            },
+        }
+    }
+}
+
+/// Read a line with `prompt`, editing it in raw mode (Emacs keys,
+/// history, paste) with each character shown as `mask` when it is not "".
+/// When stdin is not a terminal the line is read plainly, so piped input
+/// works. Accepted lines go into the editor's history.
+fn read_line_masked(Editor ed, string prompt, string mask) -> Result<LineInput, IoError> {
+    if !is_tty(stdin()) {
+        put(stdout(), prompt)?;
+        let got = io::sync::read_line(stdin())?;
+        return match got {
+            Option::Some(l) => {
+                ed.history.add(l);
+                return LineInput::Line(l);
+            },
+            Option::None => LineInput::Eof,
+        };
+    }
+    let raw = raw_mode(stdin())?;
+    let r = edit_loop(ed, prompt, mask);
+    raw.leave()?;
+    return r?;
+}
+
+/// `read_line_masked` with the text shown.
+fn read_line(Editor ed, string prompt) -> Result<LineInput, IoError> {
+    return read_line_masked(ed, prompt, "")?;
 }
