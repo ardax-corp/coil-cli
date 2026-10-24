@@ -4,7 +4,19 @@ use io::close;
 use io::file::write_text;
 use io::file::read_text;
 use io::fs::remove_file;
-use cli::prompt::{parse_confirm, confirm_label, fuzzy_match, Select, SelectKey, SelectOutcome, select_model, confirm_line, input_line, select_line};
+use cli::prompt::parse_confirm;
+use cli::prompt::confirm_label;
+use cli::prompt::fuzzy_match;
+use cli::prompt::Select;
+use cli::prompt::SelectKey;
+use cli::prompt::SelectOutcome;
+use cli::prompt::select_model;
+use cli::prompt::confirm_line;
+use cli::prompt::input_line;
+use cli::prompt::select_line;
+use cli::prompt::select_key_for;
+use cli::keys::decode_all;
+use string::to_bytes;
 
 fn strs(string... xs) -> Vec<string> {
     return xs;
@@ -104,4 +116,29 @@ test("line runners read answers from a stream") {
     assert!(shown.len() > 0);
     remove_file("prompt_in.txt")?;
     remove_file("prompt_out.txt")?;
+}
+
+test("select key bindings") {
+    let s = select_model(strs("apple", "banana", "cherry"), true, 5);
+    let out = SelectOutcome::Continue;
+    for ev in decode_all(to_bytes("\e[B \e[B \e[A\r")) {
+        match select_key_for(ev) {
+            Option::Some(k) => {
+                out = s.apply(k);
+            },
+            Option::None => {},
+        }
+    }
+    assert!(out == SelectOutcome::Submit);
+    let c = s.chosen();
+    assert!(c.len() == 2 && c[0] == 1 && c[1] == 2);
+    let f = select_model(strs("apple", "banana", "cherry"), false, 5);
+    for ev in decode_all(to_bytes("chr")) {
+        f.apply(select_key_for(ev) ?? SelectKey::Cancel);
+    }
+    assert!(f.current() == 2);
+    assert!(
+        f.apply(select_key_for(decode_all(to_bytes("\e"))[0]) ?? SelectKey::Submit) ==
+        SelectOutcome::Cancel,
+    );
 }

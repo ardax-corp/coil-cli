@@ -9,7 +9,12 @@ use io::sync::read_line;
 use string::{format, to_bytes, slice_bytes};
 use conv::parse_int;
 use text::{trim, to_lower};
-use cli::width::{truncate, width};
+use cli::width::truncate;
+use cli::width::width;
+use cli::keys::Event;
+use cli::keys::KeyEvent;
+use cli::keys::describe_key;
+use cli::keys::cp_string;
 
 /// `y`/`yes`/`n`/`no` (any case); an empty answer is `fallback`; anything
 /// else is `None` (ask again).
@@ -334,6 +339,60 @@ fn select_line(Stream input, Stream out, string question, Vec<string> items) -> 
         if n >= 1 && n <= items.len() {
             return Option::Some(n - 1);
         }
+    }
+    return Option::None;
+}
+
+/// The default binding for an input event in a `Select`: arrows, j/k
+/// style Ctrl-N/P, space toggles, Ctrl-A toggles all, typing filters.
+fn select_key_for(Event e) -> Option<SelectKey> {
+    return match e {
+        Event::Paste(t) => Option::Some(SelectKey::FilterChar(t)),
+        Event::Key(k) => select_key_for_key(k),
+        default => Option::None,
+    };
+}
+
+fn select_key_for_key(KeyEvent k) -> Option<SelectKey> {
+    let spec = describe_key(k);
+    if spec == "space" {
+        return Option::Some(SelectKey::Toggle);
+    }
+    match k.char() {
+        Option::Some(c) => {
+            return Option::Some(SelectKey::FilterChar(cp_string(c)));
+        },
+        Option::None => {},
+    }
+    if spec == "up" || spec == "ctrl+p" || spec == "shift+backtab" {
+        return Option::Some(SelectKey::Up);
+    }
+    if spec == "down" || spec == "ctrl+n" || spec == "tab" {
+        return Option::Some(SelectKey::Down);
+    }
+    if spec == "pageup" {
+        return Option::Some(SelectKey::PageUp);
+    }
+    if spec == "pagedown" {
+        return Option::Some(SelectKey::PageDown);
+    }
+    if spec == "home" {
+        return Option::Some(SelectKey::Home);
+    }
+    if spec == "end" {
+        return Option::Some(SelectKey::End);
+    }
+    if spec == "ctrl+a" {
+        return Option::Some(SelectKey::ToggleAll);
+    }
+    if spec == "backspace" || spec == "ctrl+h" {
+        return Option::Some(SelectKey::FilterBackspace);
+    }
+    if spec == "enter" {
+        return Option::Some(SelectKey::Submit);
+    }
+    if spec == "esc" || spec == "ctrl+c" {
+        return Option::Some(SelectKey::Cancel);
     }
     return Option::None;
 }

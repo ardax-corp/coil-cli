@@ -2,7 +2,15 @@
 // and history, driven by `Edit` actions. Terminal-free; a runner maps key
 // events to actions and draws `render()`.
 use string::{to_bytes, slice_bytes};
-use cli::width::{char_width, decode_at, seq_len, width};
+use cli::width::char_width;
+use cli::width::decode_at;
+use cli::width::seq_len;
+use cli::width::width;
+use cli::keys::Event;
+use cli::keys::Key;
+use cli::keys::KeyEvent;
+use cli::keys::describe_key;
+use cli::keys::cp_string;
 
 enum Edit {
     /// Insert text at the cursor (typed characters or a paste).
@@ -385,4 +393,88 @@ impl Editor {
         }
         return (out, ccol);
     }
+}
+
+/// The default (Emacs / readline-style) binding for an input event, or
+/// `None` when it means nothing to the editor. Pastes insert their text.
+fn edit_for(Event e) -> Option<Edit> {
+    return match e {
+        Event::Paste(t) => Option::Some(Edit::Insert(t)),
+        Event::Key(k) => edit_for_key(k),
+        default => Option::None,
+    };
+}
+
+fn edit_for_key(KeyEvent k) -> Option<Edit> {
+    match k.char() {
+        Option::Some(c) => {
+            return Option::Some(Edit::Insert(cp_string(c)));
+        },
+        Option::None => {},
+    }
+    let spec = describe_key(k);
+    if spec == "enter" || spec == "ctrl+j" || spec == "ctrl+m" {
+        return Option::Some(Edit::Submit);
+    }
+    if spec == "ctrl+c" || spec == "esc" {
+        return Option::Some(Edit::Cancel);
+    }
+    if spec == "ctrl+d" {
+        return Option::Some(Edit::Eof);
+    }
+    if spec == "left" || spec == "ctrl+b" {
+        return Option::Some(Edit::Left);
+    }
+    if spec == "right" || spec == "ctrl+f" {
+        return Option::Some(Edit::Right);
+    }
+    if spec == "home" || spec == "ctrl+a" {
+        return Option::Some(Edit::Home);
+    }
+    if spec == "end" || spec == "ctrl+e" {
+        return Option::Some(Edit::End);
+    }
+    if spec == "alt+b" || spec == "ctrl+left" || spec == "alt+left" {
+        return Option::Some(Edit::WordLeft);
+    }
+    if spec == "alt+f" || spec == "ctrl+right" || spec == "alt+right" {
+        return Option::Some(Edit::WordRight);
+    }
+    if spec == "backspace" || spec == "ctrl+h" || spec == "shift+backspace" {
+        return Option::Some(Edit::Backspace);
+    }
+    if spec == "delete" {
+        return Option::Some(Edit::Delete);
+    }
+    if spec == "ctrl+w" || spec == "alt+backspace" || spec == "ctrl+backspace" {
+        return Option::Some(Edit::KillWordBack);
+    }
+    if spec == "alt+d" || spec == "ctrl+delete" {
+        return Option::Some(Edit::KillWordForward);
+    }
+    if spec == "ctrl+k" {
+        return Option::Some(Edit::KillToEnd);
+    }
+    if spec == "ctrl+u" {
+        return Option::Some(Edit::KillToStart);
+    }
+    if spec == "ctrl+y" {
+        return Option::Some(Edit::Yank);
+    }
+    if spec == "ctrl+t" {
+        return Option::Some(Edit::Transpose);
+    }
+    if spec == "up" || spec == "ctrl+p" {
+        return Option::Some(Edit::HistoryPrev);
+    }
+    if spec == "down" || spec == "ctrl+n" {
+        return Option::Some(Edit::HistoryNext);
+    }
+    if spec == "ctrl+l" {
+        return Option::Some(Edit::Clear);
+    }
+    if spec == "tab" {
+        return Option::Some(Edit::Insert("\t"));
+    }
+    return Option::None;
 }

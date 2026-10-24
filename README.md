@@ -41,6 +41,7 @@ coil --root ../coil-stdlib/src --root ../coil-cli/src main.hy
 | `cli::width` | display width (wide, combining, emoji), `truncate`, `pad_*`, `center`, `wrap` |
 | `cli::args` | declarative parser: flags (counted), options, defaults, repeatable options, positionals, rest, subcommands, `--`, bundles, generated help, "did you mean" |
 | `cli::progress` | progress bar (smooth or ASCII, rate, ETA) and spinner, redrawn in place and throttled; `human_bytes`, `human_duration` |
+| `cli::keys` | `Event` (keys with modifiers, SGR mouse, bracketed paste, focus, cursor reports) and an incremental `Decoder` for CSI / SS3 / xterm / kitty-basic input |
 | `cli::line` | line-editor model: `Edit` actions, kill/yank, word moves, transpose, history with draft, scrolled and masked `view` |
 | `cli::prompt` | `parse_confirm`, fuzzy-filtered single/multi `Select` model, line-based `confirm_line` / `input_line` / `select_line` for pipes |
 | `cli::screen` | cell `Buffer` (wide chars, boxes, fills), `render_diff` / `render_full`, double-buffered `Screen` |
