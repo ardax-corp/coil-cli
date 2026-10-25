@@ -9,7 +9,7 @@ use io::sync::write_all;
 use io::sync::read_line;
 use string::{format, to_bytes, slice_bytes};
 use conv::parse_int;
-use text::{Text};
+use text::Text;
 use cli::width::truncate;
 use cli::width::width;
 use cli::keys::Event;
