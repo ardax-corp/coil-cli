@@ -10,10 +10,11 @@ use cli::term::read_bytes;
 use cli::term::raw_mode;
 use cli::term::size_or;
 use cli::term::tty;
+use cli::term::tty_io;
 
 test("events from a stream") {
-    write_text("events_in.txt", "a\e[A\e[1;5C\e[200~hi\e[201~\e")?;
-    let f = open("events_in.txt", "r")?;
+    write_text("events_in.txt", "a\e[A\e[1;5C\e[200~hi\e[201~\e").map_err(tty_io)?;
+    let f = open("events_in.txt", "r").map_err(tty_io)?;
     let ev = events_from(f, stdout());
     let seen = "";
     while let Option::Some(e) = ev.next(100)? {
@@ -22,8 +23,8 @@ test("events from a stream") {
     assert!(seen == "a up ctrl+right paste(hi) esc ");
     assert!(ev.eof);
     assert!((ev.next(0)?).is_none());
-    close(f)?;
-    remove_file("events_in.txt")?;
+    close(f).map_err(tty_io)?;
+    remove_file("events_in.txt").map_err(tty_io)?;
 }
 
 test("term on a file") {

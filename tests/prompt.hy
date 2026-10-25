@@ -19,6 +19,7 @@ use cli::prompt::parse_choices;
 use cli::prompt::multi_select_line;
 use cli::prompt::select_block;
 use cli::keys::decode_all;
+use cli::term::tty_io;
 use string::to_bytes;
 
 fn strs(string... xs) -> Vec<string> {
@@ -152,17 +153,17 @@ test("multi-select answers") {
     assert!(parse_choices("4", 3).is_none());
     assert!(parse_choices("x", 3).is_none());
     assert!((parse_choices("", 3) ?? strs_int()).len() == 0);
-    write_text("multi_in.txt", "0\n2, 1\n")?;
-    write_text("multi_out.txt", "")?;
-    let input = open("multi_in.txt", "r")?;
-    let out = open("multi_out.txt", "w")?;
+    write_text("multi_in.txt", "0\n2, 1\n").map_err(tty_io)?;
+    write_text("multi_out.txt", "").map_err(tty_io)?;
+    let input = open("multi_in.txt", "r").map_err(tty_io)?;
+    let out = open("multi_out.txt", "w").map_err(tty_io)?;
     let got = multi_select_line(input, out, "Many", strs("a", "b"))? ?? strs_int();
     assert!(got.len() == 2 && got[0] == 1 && got[1] == 0);
     assert!((multi_select_line(input, out, "Many", strs("a", "b"))?).is_none());
-    close(input)?;
-    close(out)?;
-    remove_file("multi_in.txt")?;
-    remove_file("multi_out.txt")?;
+    close(input).map_err(tty_io)?;
+    close(out).map_err(tty_io)?;
+    remove_file("multi_in.txt").map_err(tty_io)?;
+    remove_file("multi_out.txt").map_err(tty_io)?;
 }
 
 fn strs_int() -> Vec<int> {

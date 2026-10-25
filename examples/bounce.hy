@@ -2,7 +2,9 @@
 // rendering, timed events and resizes. Arrows steer, space pauses, q quits.
 //
 //   coil --allow-env --root <stdlib>/src --root src examples/bounce.hy
-use io::{stdin, stdout, IoError};
+use io::stdin;
+use io::stdout;
+use io::tty::TtyError;
 use string::format;
 use cli::ansi::enter_alt_screen;
 use cli::ansi::leave_alt_screen;
@@ -24,7 +26,7 @@ use cli::term::raw_mode;
 use cli::term::put;
 use cli::term::size_or;
 
-fn run(Screen scr) -> Result<(), IoError> {
+fn run(Screen scr) -> Result<(), TtyError> {
     let out = stdout();
     let ev = events();
     let x = 2;
@@ -84,7 +86,7 @@ fn run(Screen scr) -> Result<(), IoError> {
     }
 }
 
-fn main() -> Result<(), IoError> {
+fn main() -> Result<(), TtyError> {
     let out = stdout();
     let raw = raw_mode(stdin())?;
     let sz = size_or(out, 80, 24);
