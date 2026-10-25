@@ -243,7 +243,7 @@ impl Select {
                     while cut > 0 && ((b[cut] as int) & 192) == 128 {
                         cut--;
                     }
-                    self.filter = slice_bytes(self.filter, 0, cut) ?? "";
+                    self.filter = slice_bytes(self.filter, 0, cut).ok() ?? "";
                     self.refilter();
                 }
             },
@@ -350,7 +350,7 @@ fn select_line(Stream input, Stream out, string question, Vec<string> items) -> 
                 return Option::None;
             },
         };
-        let n = parse_int(line.trim()) ?? 0;
+        let n = parse_int(line.trim()).ok() ?? 0;
         if n >= 1 && n <= items.len() {
             return Option::Some(n - 1);
         }
