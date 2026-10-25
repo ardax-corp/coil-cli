@@ -1,7 +1,10 @@
 // Input events from a terminal: timed reads over `cli::term`, decoded by
 // `cli::keys`, with the Esc timeout and window resizes folded in. The
 // seam full-screen programs and the interactive prompts read from.
-use io::{Stream, IoError, stdin, stdout};
+use io::Stream;
+use io::stdin;
+use io::stdout;
+use io::tty::TtyError;
 use clock::mono_nanos;
 use cli::keys::Decoder;
 use cli::keys::Event;
@@ -74,7 +77,7 @@ impl Events {
     /// The next event, waiting up to `timeout_ms` (negative: for ever).
     /// `None` when the time passed with nothing to report, or at the end
     /// of input (then `eof` is set).
-    pub fn next(int timeout_ms) -> Result<Option<Event>, IoError> {
+    pub fn next(int timeout_ms) -> Result<Option<Event>, TtyError> {
         let start = mono_nanos();
         while true {
             match self.take_queued() {
@@ -124,7 +127,7 @@ impl Events {
     }
 
     /// Every event available now, without waiting.
-    pub fn poll() -> Result<Vec<Event>, IoError> {
+    pub fn poll() -> Result<Vec<Event>, TtyError> {
         let out: Vec<Event> = Vec::new();
         while let Option::Some(e) = self.next(0)? {
             out.push(e);

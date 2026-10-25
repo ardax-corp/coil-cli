@@ -3,6 +3,7 @@
 // real terminal goes through here; the other modules work on strings.
 use io::Stream;
 use io::IoError;
+use io::tty::TtyError;
 use io::stdin;
 use io::stdout;
 use io::stderr;
@@ -69,21 +70,21 @@ class RawMode {
 }
 
 /// Raw mode with the signal keys and output processing chosen.
-fn raw_mode_with(Stream input, bool keep_signals, bool keep_output) -> Result<RawMode, IoError> {
+fn raw_mode_with(Stream input, bool keep_signals, bool keep_output) -> Result<RawMode, TtyError> {
     enter_raw(input, keep_signals, keep_output)?;
     return new RawMode(input, true);
 }
 
 /// Raw mode on `input` with Ctrl-C/Ctrl-Z delivered as keys and output
 /// sent as is (write "\r\n"), as full-screen programs and line editors
-/// want. `Err(IoError::NotATerminal)` when `input` is not a terminal.
-fn raw_mode(Stream input) -> Result<RawMode, IoError> {
+/// want. `Err(TtyError::NotATerminal)` when `input` is not a terminal.
+fn raw_mode(Stream input) -> Result<RawMode, TtyError> {
     return raw_mode_with(input, false, false)?;
 }
 
 impl RawMode {
     /// Restore the terminal. Safe to call more than once.
-    pub fn leave() -> Result<(), IoError> {
+    pub fn leave() -> Result<(), TtyError> {
         if self.active {
             self.active = false;
             leave_raw(self.input)?;
@@ -99,7 +100,7 @@ impl RawMode {
 /// Wait up to `timeout_ms` (negative: for ever) and read at most `max`
 /// bytes. `Some([])` when the time passed or a resize cut the wait short,
 /// `None` at end of input.
-fn read_bytes(Stream s, int max, int timeout_ms) -> Result<Option<Vec<byte>>, IoError> {
+fn read_bytes(Stream s, int max, int timeout_ms) -> Result<Option<Vec<byte>>, TtyError> {
     let buf: Vec<byte> = Vec::new();
     let i = 0;
     while i < max {
@@ -121,8 +122,13 @@ fn read_bytes(Stream s, int max, int timeout_ms) -> Result<Option<Vec<byte>>, Io
     };
 }
 
+/// A stream error as a terminal error.
+fn tty_io(IoError e) -> TtyError {
+    return TtyError::Io(e);
+}
+
 /// Write `text` to `out`.
-fn put(Stream out, string text) -> Result<(), IoError> {
-    write_all(out, to_bytes(text))?;
+fn put(Stream out, string text) -> Result<(), TtyError> {
+    write_all(out, to_bytes(text)).map_err(tty_io)?;
     return;
 }

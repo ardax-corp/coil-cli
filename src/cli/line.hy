@@ -16,11 +16,12 @@ use cli::ansi::right;
 use cli::term::RawMode;
 use cli::term::raw_mode;
 use cli::term::put;
+use cli::term::tty_io;
 use cli::term::size_or;
 use cli::events::Events;
 use cli::events::events;
 use io::Stream;
-use io::IoError;
+use io::tty::TtyError;
 use io::stdin;
 use io::stdout;
 use io::tty::is_tty;
@@ -502,7 +503,7 @@ enum LineInput {
     Eof,
 }
 
-fn draw_line(Stream out, Editor ed, string prompt, string mask, int cols) -> Result<(), IoError> {
+fn draw_line(Stream out, Editor ed, string prompt, string mask, int cols) -> Result<(), TtyError> {
     let pw = width(prompt);
     let avail = cols - pw - 1;
     if avail < 1 {
@@ -514,7 +515,7 @@ fn draw_line(Stream out, Editor ed, string prompt, string mask, int cols) -> Res
     return;
 }
 
-fn edit_loop(Editor ed, string prompt, string mask) -> Result<LineInput, IoError> {
+fn edit_loop(Editor ed, string prompt, string mask) -> Result<LineInput, TtyError> {
     let out = stdout();
     let ev = events();
     let sz = size_or(out, 80, 24);
@@ -564,10 +565,10 @@ fn edit_loop(Editor ed, string prompt, string mask) -> Result<LineInput, IoError
 /// history, paste) with each character shown as `mask` when it is not "".
 /// When stdin is not a terminal the line is read plainly, so piped input
 /// works. Accepted lines go into the editor's history.
-fn read_line_masked(Editor ed, string prompt, string mask) -> Result<LineInput, IoError> {
+fn read_line_masked(Editor ed, string prompt, string mask) -> Result<LineInput, TtyError> {
     if !is_tty(stdin()) {
         put(stdout(), prompt)?;
-        let got = io::sync::read_line(stdin())?;
+        let got = io::sync::read_line(stdin()).map_err(tty_io)?;
         return match got {
             Option::Some(l) => {
                 ed.history.add(l);
@@ -583,6 +584,6 @@ fn read_line_masked(Editor ed, string prompt, string mask) -> Result<LineInput, 
 }
 
 /// `read_line_masked` with the text shown.
-fn read_line(Editor ed, string prompt) -> Result<LineInput, IoError> {
+fn read_line(Editor ed, string prompt) -> Result<LineInput, TtyError> {
     return read_line_masked(ed, prompt, "")?;
 }
