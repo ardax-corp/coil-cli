@@ -9,7 +9,7 @@ use io::sync::write_all;
 use io::sync::read_line;
 use string::{format, to_bytes, slice_bytes};
 use conv::parse_int;
-use text::{trim, to_lower};
+use text::Text;
 use cli::width::truncate;
 use cli::width::width;
 use cli::keys::Event;
@@ -35,7 +35,7 @@ use cli::keys::{KeyEvent, describe_key, cp_string};
 /// `y`/`yes`/`n`/`no` (any case); an empty answer is `fallback`; anything
 /// else is `None` (ask again).
 fn parse_confirm(string answer, bool fallback) -> Option<bool> {
-    let a = to_lower(trim(answer) ?? "") ?? "";
+    let a = answer.trim().to_lower();
     if a == "" {
         return Option::Some(fallback);
     }
@@ -58,8 +58,8 @@ fn confirm_label(string question, bool fallback) -> string {
 
 /// Case-insensitive subsequence match: "cmt" matches "commit".
 fn fuzzy_match(string pattern, string text) -> bool {
-    let p = to_bytes(to_lower(pattern) ?? pattern);
-    let t = to_bytes(to_lower(text) ?? text);
+    let p = to_bytes(pattern.to_lower());
+    let t = to_bytes(text.to_lower());
     let i = 0;
     for c in t {
         if i < p.len() && p[i] == c {
@@ -243,7 +243,7 @@ impl Select {
                     while cut > 0 && ((b[cut] as int) & 192) == 128 {
                         cut--;
                     }
-                    self.filter = slice_bytes(self.filter, 0, cut) ?? "";
+                    self.filter = slice_bytes(self.filter, 0, cut).ok() ?? "";
                     self.refilter();
                 }
             },
@@ -350,7 +350,7 @@ fn select_line(Stream input, Stream out, string question, Vec<string> items) -> 
                 return Option::None;
             },
         };
-        let n = parse_int(trim(line) ?? "") ?? 0;
+        let n = parse_int(line.trim()).ok() ?? 0;
         if n >= 1 && n <= items.len() {
             return Option::Some(n - 1);
         }
