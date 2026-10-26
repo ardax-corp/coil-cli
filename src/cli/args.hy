@@ -29,11 +29,19 @@ class Arg {
     pub required: bool,
 }
 
-enum ArgError {
-    /// `-h` / `--help`: the help text to print (exit 0).
+/// What a successful parse asked for: run with the matches, or print
+/// the help text or version line and exit 0.
+enum Parsed {
+    /// Normal arguments: the matches for the command.
+    Matches(Matches),
+    /// `-h` / `--help`: the help text to print.
     Help(string),
-    /// `-V` / `--version`: the version line (exit 0).
+    /// `-V` / `--version`: the version line to print.
     Version(string),
+}
+
+/// A usage mistake (exit 2).
+enum ArgError {
     /// An option nobody declared, with a suggestion or "".
     UnknownOption(string, string),
     /// An option that needs a value got none.
@@ -512,7 +520,7 @@ impl Command {
 
 // A free function: a method calling itself on another `Command` sees its
 // return type unqualified (coil-lang#1980).
-fn parse_args(Command cmd, Vec<string> argv) -> Result<Matches, ArgError> {
+fn parse_args(Command cmd, Vec<string> argv) -> Result<Parsed, ArgError> {
     let m = new_matches(cmd.name);
     let positionals: Vec<string> = Vec::new();
     let only_positional = false;
@@ -531,9 +539,17 @@ fn parse_args(Command cmd, Vec<string> argv) -> Result<Matches, ArgError> {
                             rest.push(argv[k]);
                             k++;
                         }
-                        let sm = parse_args(c, rest)?;
-                        m.sub_name = c.name;
-                        m.sub.push(sm);
+                        // Help or version from the subcommand ends the parse.
+                        let sub = parse_args(c, rest)?;
+                        match sub {
+                            Parsed::Matches(sm) => {
+                                m.sub_name = c.name;
+                                m.sub.push(sm);
+                            },
+                            default => {
+                                return sub;
+                            },
+                        }
                     }
                 }
                 if found {
@@ -570,10 +586,10 @@ fn parse_args(Command cmd, Vec<string> argv) -> Result<Matches, ArgError> {
                 Option::None => {},
             }
             if name == "help" {
-                raise ArgError::Help(cmd.help());
+                return Parsed::Help(cmd.help());
             }
             if name == "version" && cmd.version != "" {
-                raise ArgError::Version(cmd.name + " " + cmd.version);
+                return Parsed::Version(cmd.name + " " + cmd.version);
             }
             let spec = match cmd.find_long(name) {
                 Option::Some(s) => s,
@@ -594,10 +610,10 @@ fn parse_args(Command cmd, Vec<string> argv) -> Result<Matches, ArgError> {
                 Result::Err(_) => "",
             };
             if s == "h" {
-                raise ArgError::Help(cmd.help());
+                return Parsed::Help(cmd.help());
             }
             if s == "V" && cmd.version != "" {
-                raise ArgError::Version(cmd.name + " " + cmd.version);
+                return Parsed::Version(cmd.name + " " + cmd.version);
             }
             let spec = match cmd.find_short(s) {
                 Option::Some(sp) => sp,
@@ -622,12 +638,13 @@ fn parse_args(Command cmd, Vec<string> argv) -> Result<Matches, ArgError> {
     }
     cmd.fill_positionals(m, positionals)?;
     cmd.finish(m)?;
-    return m;
+    return Parsed::Matches(m);
 }
 
 impl Command {
-    /// Parse `argv` (without the program name).
-    pub fn parse(Vec<string> argv) -> Result<Matches, ArgError> {
+    /// Parse `argv` (without the program name). `--help` and `--version`
+    /// are successes (`Parsed::Help` / `Parsed::Version`), not errors.
+    pub fn parse(Vec<string> argv) -> Result<Parsed, ArgError> {
         return parse_args(self, argv)?;
     }
 }
@@ -635,8 +652,6 @@ impl Command {
 /// Text for an error, with the usage line and a pointer to `--help`.
 fn error_message(Command c, ArgError e) -> string {
     let msg = match e {
-        ArgError::Help(t) => t,
-        ArgError::Version(t) => t,
         ArgError::UnknownOption(o, s) => {
             if s != "" {
                 return format(
@@ -672,18 +687,5 @@ fn error_message(Command c, ArgError e) -> string {
         },
         ArgError::FlagValue(n) => format("error: '--%s' takes no value", n),
     };
-    return match e {
-        ArgError::Help(_) => msg,
-        ArgError::Version(_) => msg,
-        default => msg + "\n\n" + c.usage() + "\n\nFor more information, try '--help'.",
-    };
-}
-
-/// Exit status for an error: 0 for help/version, 2 for usage errors.
-fn exit_code(ArgError e) -> int {
-    return match e {
-        ArgError::Help(_) => 0,
-        ArgError::Version(_) => 0,
-        default => 2,
-    };
+    return msg + "\n\n" + c.usage() + "\n\nFor more information, try '--help'.";
 }

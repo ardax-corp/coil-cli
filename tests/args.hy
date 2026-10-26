@@ -1,5 +1,5 @@
 use tests::assert;
-use cli::args::{Command, Matches, ArgError, command, error_message, exit_code, distance};
+use cli::args::{Command, Matches, Parsed, ArgError, command, error_message, distance};
 
 fn v(string... xs) -> Vec<string> {
     return xs;
@@ -17,14 +17,15 @@ fn app() -> Command {
         .rest("extra", "Extra files", false);
 }
 
-fn ok(Result<Matches, ArgError> r) -> Matches {
+fn ok(Result<Parsed, ArgError> r) -> Matches {
     return match r {
-        Result::Ok(m) => m,
+        Result::Ok(Parsed::Matches(m)) => m,
+        Result::Ok(_) => panic "expected matches, got help or version",
         Result::Err(e) => panic error_message(app(), e),
     };
 }
 
-fn err(Result<Matches, ArgError> r) -> ArgError {
+fn err(Result<Parsed, ArgError> r) -> ArgError {
     return match r {
         Result::Ok(_) => panic "expected an error",
         Result::Err(e) => e,
@@ -85,20 +86,22 @@ test("errors") {
             default => false,
         },
     );
-    assert!(exit_code(err(app().parse(v("-z", "in")))) == 2);
+    let z = error_message(app(), err(app().parse(v("-z", "in"))));
+    assert!(z.contains("error: unexpected option '-z'"));
 }
 
 test("help and version") {
-    let h = err(app().parse(v("--help")));
-    assert!(exit_code(h) == 0);
-    let text = error_message(app(), h);
+    let text = match app().parse(v("--help")) {
+        Result::Ok(Parsed::Help(t)) => t,
+        default => panic "expected help",
+    };
     assert!(text.contains("Usage: tool [options] <input> [extra]..."));
     assert!(text.contains("-o, --output <FILE>"));
     assert!(text.contains("[default: 3]"));
     assert!(text.contains("-V, --version"));
     assert!(
-        match err(app().parse(v("-V"))) {
-            ArgError::Version(v) => v == "tool 1.2.3",
+        match app().parse(v("-V")) {
+            Result::Ok(Parsed::Version(v)) => v == "tool 1.2.3",
             default => false,
         },
     );
@@ -116,10 +119,7 @@ fn git() -> Command {
 }
 
 test("subcommands") {
-    let m = match git().parse(v("-v", "commit", "-am", "fix")) {
-        Result::Ok(m) => m,
-        Result::Err(e) => panic error_message(git(), e),
-    };
+    let m = ok(git().parse(v("-v", "commit", "-am", "fix")));
     assert!(m.flag("verbose"));
     assert!(m.subcommand_name() == "commit");
     let c = match m.subcommand() {
@@ -135,7 +135,7 @@ test("subcommands") {
         },
     );
     let h = match git().parse(v("push", "--help")) {
-        Result::Err(ArgError::Help(t)) => t,
+        Result::Ok(Parsed::Help(t)) => t,
         default => "",
     };
     assert!(h.contains("Usage: git push [options] <remote>"));
