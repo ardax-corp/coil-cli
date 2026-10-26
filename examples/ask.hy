@@ -23,22 +23,22 @@ fn strs(string... xs) -> Vec<string> {
 }
 
 fn main() {
-    let go = confirm("Start the survey?", true) ?? Option::None;
+    let go = confirm("Start the survey?", true).ok() ?? Option::None;
     if !(go ?? false) {
         say("Maybe later.\n");
         return;
     }
-    let name = (input("Your name?", "anonymous") ?? Option::None) ?? "anonymous";
+    let name = (input("Your name?", "anonymous").ok() ?? Option::None) ?? "anonymous";
     let langs = strs("Coil", "Rust", "Zig", "Go", "OCaml");
-    let fav = (select("Favourite language?", langs) ?? Option::None) ?? 0;
+    let fav = (select("Favourite language?", langs).ok() ?? Option::None) ?? 0;
     let tools = strs("editor", "debugger", "profiler", "formatter");
-    let used = (multi_select("Which tools do you use?", tools) ?? Option::None) ?? Vec::new();
+    let used = (multi_select("Which tools do you use?", tools).ok() ?? Option::None) ?? Vec::new();
     say(format("%s likes %s and uses %i tool(s).\n", name, langs[fav], used.len()));
 
     say("Type lines to echo; `quit` or Ctrl-D ends.\n");
     let ed = editor(history(50));
     while true {
-        let got = read_line(ed, "echo> ") ?? LineInput::Eof;
+        let got = read_line(ed, "echo> ").ok() ?? LineInput::Eof;
         match got {
             LineInput::Line(l) => {
                 if l == "quit" {

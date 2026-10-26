@@ -34,7 +34,7 @@ fn app() -> Command {
 }
 
 fn main() {
-    let argv = args() ?? Vec::new();
+    let argv = args().ok() ?? Vec::new();
     let rest: Vec<string> = Vec::new();
     let i = 1;
     while i < argv.len() {
@@ -50,7 +50,7 @@ fn main() {
             return;
         },
     };
-    let times = parse_int(m.value_or("times", "1")) ?? 1;
+    let times = parse_int(m.value_or("times", "1")).ok() ?? 1;
     let p = Painter::from_env(stdout_is_tty());
     let b = bar(times, columns(), stderr_is_tty());
     b.set_label("greeting");
