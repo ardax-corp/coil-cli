@@ -12,7 +12,7 @@ use cli::args::Command;
 use cli::args::command;
 use cli::args::parse_args;
 use cli::args::error_message;
-use cli::args::exit_code;
+use cli::args::Parsed;
 use cli::style::Painter;
 use cli::style::fg;
 use cli::style::green;
@@ -43,10 +43,20 @@ fn main() {
     }
     let cmd = app();
     let m = match parse_args(cmd, rest) {
-        Result::Ok(m) => m,
+        Result::Ok(Parsed::Matches(m)) => m,
+        Result::Ok(Parsed::Help(text)) => {
+            say(text + "\n");
+            exit(0);
+            return;
+        },
+        Result::Ok(Parsed::Version(text)) => {
+            say(text + "\n");
+            exit(0);
+            return;
+        },
         Result::Err(e) => {
             let _ = write_all(stderr(), to_bytes(error_message(cmd, e) + "\n"));
-            exit(exit_code(e));
+            exit(2);
             return;
         },
     };
