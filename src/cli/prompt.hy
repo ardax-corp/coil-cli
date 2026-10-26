@@ -20,13 +20,14 @@ use cli::line::history;
 use cli::line::read_line_masked;
 use cli::term::raw_mode;
 use cli::term::put;
+use cli::term::tty_io;
 use cli::term::size_or;
 use cli::events::events;
 use cli::ansi::clear_below;
 use cli::ansi::hide_cursor;
 use cli::ansi::show_cursor;
 use cli::ansi::up;
-use io::IoError;
+use io::tty::TtyError;
 use io::stdin;
 use io::stdout;
 use io::tty::is_tty;
@@ -414,7 +415,7 @@ fn select_key_for_key(KeyEvent k) -> Option<SelectKey> {
 /// Ask a yes/no question. On a terminal one key answers (y / n, Enter for
 /// `fallback`); otherwise a line is read. `None` when cancelled (Ctrl-C,
 /// Esc) or at end of input.
-fn confirm(string question, bool fallback) -> Result<Option<bool>, IoError> {
+fn confirm(string question, bool fallback) -> Result<Option<bool>, TtyError> {
     if !is_tty(stdin()) {
         return Option::Some(confirm_line(stdin(), stdout(), question, fallback));
     }
@@ -425,7 +426,7 @@ fn confirm(string question, bool fallback) -> Result<Option<bool>, IoError> {
     return r?;
 }
 
-fn confirm_keys(Stream out, string question, bool fallback) -> Result<Option<bool>, IoError> {
+fn confirm_keys(Stream out, string question, bool fallback) -> Result<Option<bool>, TtyError> {
     put(out, confirm_label(question, fallback))?;
     let ev = events();
     while true {
@@ -463,7 +464,7 @@ fn confirm_keys(Stream out, string question, bool fallback) -> Result<Option<boo
     }
 }
 
-fn ask(string question, string fallback, string mask) -> Result<Option<string>, IoError> {
+fn ask(string question, string fallback, string mask) -> Result<Option<string>, TtyError> {
     let label = question + " ";
     if fallback != "" && mask == "" {
         label = question + " (" + fallback + ") ";
@@ -482,13 +483,13 @@ fn ask(string question, string fallback, string mask) -> Result<Option<string>, 
 
 /// Ask for a line, edited in place on a terminal; an empty answer is
 /// `fallback`. `None` when cancelled or at end of input.
-fn input(string question, string fallback) -> Result<Option<string>, IoError> {
+fn input(string question, string fallback) -> Result<Option<string>, TtyError> {
     return ask(question, fallback, "")?;
 }
 
 /// Ask for a secret; each character shows as `*`. `None` when cancelled
 /// or at end of input.
-fn password(string question) -> Result<Option<string>, IoError> {
+fn password(string question) -> Result<Option<string>, TtyError> {
     return ask(question, "", "*")?;
 }
 
@@ -511,7 +512,7 @@ fn select_block(string question, Select s, int cols) -> Vec<string> {
     return out;
 }
 
-fn draw_block(Stream out, Vec<string> lines, int drawn) -> Result<int, IoError> {
+fn draw_block(Stream out, Vec<string> lines, int drawn) -> Result<int, TtyError> {
     let s = "\r";
     if drawn > 1 {
         s = s + up(drawn - 1);
@@ -529,7 +530,7 @@ fn draw_block(Stream out, Vec<string> lines, int drawn) -> Result<int, IoError> 
     return lines.len();
 }
 
-fn run_select(Stream out, string question, Select s) -> Result<bool, IoError> {
+fn run_select(Stream out, string question, Select s) -> Result<bool, TtyError> {
     let sz = size_or(out, 80, 24);
     let (cols, rows) = sz;
     if s.height > rows - 2 {
@@ -597,7 +598,7 @@ fn strs1(string x) -> Vec<string> {
     return v;
 }
 
-fn select_raw(string question, Select s) -> Result<bool, IoError> {
+fn select_raw(string question, Select s) -> Result<bool, TtyError> {
     let out = stdout();
     let raw = raw_mode(stdin())?;
     let r = run_select(out, question, s);
@@ -611,7 +612,7 @@ fn select_raw(string question, Select s) -> Result<bool, IoError> {
 /// Pick one of `items` with the arrow keys (type to filter). Falls back
 /// to a numbered list when stdin is not a terminal. `None` when
 /// cancelled or at end of input.
-fn select(string question, Vec<string> items) -> Result<Option<int>, IoError> {
+fn select(string question, Vec<string> items) -> Result<Option<int>, TtyError> {
     if items.len() == 0 {
         return Option::None;
     }
@@ -628,7 +629,7 @@ fn select(string question, Vec<string> items) -> Result<Option<int>, IoError> {
 /// Pick any of `items` (space toggles, Ctrl-A toggles all, Enter
 /// accepts). Off a terminal, a line of numbers separated by spaces or
 /// commas is read. `None` when cancelled or at end of input.
-fn multi_select(string question, Vec<string> items) -> Result<Option<Vec<int>>, IoError> {
+fn multi_select(string question, Vec<string> items) -> Result<Option<Vec<int>>, TtyError> {
     if !is_tty(stdin()) {
         return multi_select_line(stdin(), stdout(), question, items);
     }
@@ -672,7 +673,7 @@ fn multi_select_line(
     Stream out,
     string question,
     Vec<string> items,
-) -> Result<Option<Vec<int>>, IoError> {
+) -> Result<Option<Vec<int>>, TtyError> {
     say(out, question + "\n");
     let i = 0;
     while i < items.len() {
@@ -681,7 +682,7 @@ fn multi_select_line(
     }
     while true {
         say(out, format("Choose from 1-%i (space separated): ", items.len()));
-        let got = read_line(input)?;
+        let got = read_line(input).map_err(tty_io)?;
         match got {
             Option::None => {
                 return Option::None;
