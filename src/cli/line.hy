@@ -114,7 +114,7 @@ fn is_word(string u) -> bool {
     return (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c == 95;
 }
 
-class History {
+shared class History {
     pub entries: Vec<string>,
     /// Most entries kept (oldest dropped first).
     pub limit: int,

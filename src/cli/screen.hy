@@ -62,7 +62,7 @@ fn piece(string s, int from, int to) -> string {
     };
 }
 
-class Buffer {
+shared class Buffer {
     pub cols: int,
     pub rows: int,
     cells: Vec<Cell>,
