@@ -8,12 +8,17 @@ Pure Coil, no native code: terminal state (isatty, raw mode, size, timed reads, 
 
 - coil-lang (edge) and coil-stdlib
 
-## Quick start
+## Use it
+
+With [spool](https://github.com/ardax-corp/spool):
 
 ```bash
-make test     # coil test harness (needs coil on PATH; pass COIL_ROOTS='--root <stdlib>/src'; writes scratch files)
-make fmt      # format check
+spool add cli --git https://github.com/ardax-corp/coil-cli.git --rev <commit SHA>
 ```
+
+There are no tags yet, so pin a commit with `--rev`. Without spool, clone this repo (and coil-stdlib) next to your project and pass `--root ../coil-cli/src` to `coil`, as below.
+
+## Quick start
 
 ```coil
 use cli::style::{Painter, fg, red};
@@ -33,6 +38,8 @@ fn main() {
 ```bash
 coil --root ../coil-stdlib/src --root ../coil-cli/src main.hy
 ```
+
+Every public item has `///` docs with examples; the pure modules' examples run as doc tests.
 
 ## Modules
 
@@ -64,7 +71,15 @@ coil --allow-env --allow-exit --root ../coil-stdlib/src --root src examples/hell
 make examples COIL_ROOTS='--root ../coil-stdlib/src'   # compile them all
 ```
 
-A TUI layer (layout, widgets, focus) is planned as a separate package on top of `cli::screen` and `cli::events`; see [docs/design.md](docs/design.md).
+A component framework (layout, widgets, focus) built on `cli::screen` and `cli::events` is [coil-tui](https://github.com/ardax-corp/coil-tui), package `tui`.
+
+## Development
+
+```bash
+make test COIL_ROOTS='--root ../coil-stdlib/src'          # tests/ and the doc examples of the modules they import; writes scratch files
+coil test --doc-tests-only src --root ../coil-stdlib/src  # only the doc examples under src/
+make fmt                                                  # format check
+```
 
 ## License
 
