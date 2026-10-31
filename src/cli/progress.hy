@@ -16,10 +16,15 @@ fn strs(string... xs) -> Vec<string> {
 /// Bar glyphs. `partials` are the fractional cells from 1/n to (n-1)/n
 /// (may be empty for whole-cell bars).
 class BarStyle {
+    /// Drawn before the bar.
     pub left: string,
+    /// Drawn after the bar.
     pub right: string,
+    /// A full cell.
     pub fill: string,
+    /// An empty cell.
     pub empty: string,
+    /// Partly filled cells, from 1/n to (n-1)/n full.
     pub partials: Vec<string>,
 }
 
@@ -50,6 +55,17 @@ fn repeat(string s, int n) -> string {
 }
 
 /// The bar itself, `cells` wide inside its ends, for `current` of `total`.
+/// `current` is clamped to `0..=total`; a `total` of 0 draws an empty bar.
+///
+/// # Examples
+///
+/// ```
+/// use cli::progress::{ascii, render_bar};
+/// # use tests::assert;
+/// assert!(render_bar(ascii(), 5, 10, 10) == "[=====     ]");
+/// assert!(render_bar(ascii(), 55, 100, 10) == "[=====>    ]");
+/// assert!(render_bar(ascii(), 20, 10, 4) == "[====]");
+/// ```
 fn render_bar(BarStyle st, int current, int total, int cells) -> string {
     if cells <= 0 {
         return st.left + st.right;
@@ -77,7 +93,18 @@ fn render_bar(BarStyle st, int current, int total, int cells) -> string {
     return s + repeat(st.empty, cells - used) + st.right;
 }
 
-/// `1.5 KiB`, `12 B`, `3.2 GiB`.
+/// A byte count in binary units: `12 B`, `1.5 KiB`, `3.2 GiB` (one decimal
+/// below 10, none from 10 up).
+///
+/// # Examples
+///
+/// ```
+/// use cli::progress::{human_bytes, human_duration};
+/// # use tests::assert;
+/// assert!(human_bytes(12) == "12 B");
+/// assert!(human_bytes(1536) == "1.5 KiB");
+/// assert!(human_duration(185000) == "3m05s");
+/// ```
 fn human_bytes(int n) -> string {
     if n < 1024 {
         return format("%i B", n);
@@ -92,7 +119,7 @@ fn human_bytes(int n) -> string {
     return one_decimal(v) + " " + units[i];
 }
 
-/// `v` with one decimal place, `10.0` and up without.
+// `v` with one decimal place, `10.0` and up without.
 fn one_decimal(float v) -> string {
     if v >= 10.0 {
         return format("%i", (v + 0.5) as int);
@@ -101,7 +128,7 @@ fn one_decimal(float v) -> string {
     return format("%i.%i", tenths / 10, tenths % 10);
 }
 
-/// `950ms`, `12s`, `3m05s`, `1h02m`.
+/// A duration in milliseconds, short: `950ms`, `12s`, `3m05s`, `1h02m`.
 fn human_duration(int ms) -> string {
     if ms < 1000 {
         return format("%ims", ms);
@@ -149,7 +176,8 @@ fn eta_ms(int current, int total, int elapsed_ms) -> int {
 
 /// A whole progress line, at most `cols` columns:
 /// `label ▕████▍    ▏ 45% 450/1000 1.2k/s ETA 3s`. The bar takes what
-/// the text leaves (at least 10 cells, else it is left out).
+/// the text leaves (at most 60 cells; under 10 it is left out and the
+/// text is truncated to fit).
 fn render_line(
     BarStyle st,
     string label,
@@ -199,6 +227,16 @@ fn line_frames() -> Vec<string> {
     return strs("-", "\\", "|", "/");
 }
 
+/// One spinner line: frame `tick` (wrapping) of `frames`, then `label`,
+/// then the elapsed time once it reaches a second.
+///
+/// # Examples
+///
+/// ```
+/// use cli::progress::{line_frames, render_spinner};
+/// # use tests::assert;
+/// assert!(render_spinner(line_frames(), 5, "working", 2500) == "\\ working (2s)");
+/// ```
 fn render_spinner(Vec<string> frames, int tick, string label, int elapsed_ms) -> string {
     let f = frames[tick % frames.len()];
     let s = f + " " + label;
@@ -208,6 +246,7 @@ fn render_spinner(Vec<string> frames, int tick, string label, int elapsed_ms) ->
     return s;
 }
 
+// Minimum time between redraws (ns).
 const REDRAW_NS = 80000000;
 
 fn now_ms(int start_ns) -> int {
@@ -221,11 +260,32 @@ fn emit(Stream out, string s) {
     }
 }
 
-/// A redrawing progress bar.
+/// A progress bar on stderr that redraws its line in place, at most every
+/// 80ms. When `enabled` is false (stderr is not a terminal) nothing is
+/// written, so logs stay clean.
+///
+/// # Examples
+///
+/// ```no_run
+/// use cli::progress::bar;
+/// use cli::term::{columns, stderr_is_tty};
+/// let b = bar(1000, columns(), stderr_is_tty());
+/// b.set_label("copying");
+/// let i = 0;
+/// while i < 1000 {
+///     b.inc(1);
+///     i++;
+/// }
+/// b.finish("done");
+/// ```
 class Bar {
+    /// Steps for a full bar.
     pub total: int,
+    /// Steps done so far.
     pub current: int,
+    /// Text in front of the bar ("" for none).
     pub label: string,
+    /// The glyphs; `blocks()` unless changed.
     pub style: BarStyle,
     /// Columns to fit in (the terminal width).
     pub cols: int,
@@ -245,25 +305,30 @@ fn bar(int total, int cols, bool enabled) -> Bar {
 }
 
 impl Bar {
+    /// Change the label and redraw (throttled).
     pub fn set_label(string label) {
         self.label = label;
         self.draw(false);
     }
 
+    /// Advance by `n` steps and redraw (throttled).
     pub fn inc(int n) {
         self.current = self.current + n;
         self.draw(false);
     }
 
+    /// Set the steps done to `n` and redraw (throttled).
     pub fn set(int n) {
         self.current = n;
         self.draw(false);
     }
 
+    /// Milliseconds since the bar was made.
     pub fn elapsed_ms() -> int {
         return now_ms(self.start_ns);
     }
 
+    /// The line as it would be drawn now (see `render_line`).
     pub fn line() -> string {
         return render_line(
             self.style,
@@ -312,8 +377,11 @@ impl Bar {
 
 /// A redrawing spinner; call `tick` from the work loop.
 class Spinner {
+    /// Text after the spinner frame.
     pub label: string,
+    /// The animation frames; `dots()` unless changed.
     pub frames: Vec<string>,
+    /// Draw at all. Pass whether stderr is a terminal.
     pub enabled: bool,
     out: Stream,
     start_ns: int,
@@ -321,11 +389,28 @@ class Spinner {
     frame: int,
 }
 
+/// A spinner on stderr with `label` and the `dots()` frames. `enabled`
+/// should be whether stderr is a terminal.
+///
+/// # Examples
+///
+/// ```no_run
+/// use cli::progress::spinner;
+/// use cli::term::stderr_is_tty;
+/// let s = spinner("waiting", stderr_is_tty());
+/// let i = 0;
+/// while i < 1000 {
+///     s.tick();
+///     i++;
+/// }
+/// s.finish("ready");
+/// ```
 fn spinner(string label, bool enabled) -> Spinner {
     return new Spinner(label, dots(), enabled, stderr(), mono_nanos(), 0, 0);
 }
 
 impl Spinner {
+    /// Change the label; shown on the next `tick`.
     pub fn set_label(string label) {
         self.label = label;
     }
