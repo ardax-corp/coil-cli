@@ -1,7 +1,7 @@
 // A full-screen program: the alternate screen, the cell buffer with diff
 // rendering, timed events and resizes. Arrows steer, space pauses, q quits.
 //
-//   coil --allow-env --root <stdlib>/src --root src examples/bounce.hy
+//   coil --allow-env --root <stdlib>/src --root src examples/bounce.coil
 use io::stdin;
 use io::stdout;
 use io::tty::TtyError;
