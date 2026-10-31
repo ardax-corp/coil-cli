@@ -16,13 +16,40 @@ use cli::term::was_resized;
 /// How long a lone Esc waits for the rest of a sequence (ms).
 const ESC_TIMEOUT_MS = 30;
 
+// Bytes asked for per read.
 const READ_CHUNK = 1024;
 
+/// A source of decoded input events (`cli::keys::Event`): keys, mouse,
+/// paste, focus and `Resize`. Make one with `events` (stdin) or
+/// `events_from`, then call `next` with a timeout.
+///
+/// # Examples
+///
+/// ```no_run
+/// use cli::events::events;
+/// use cli::keys::describe;
+/// use cli::term::raw_mode;
+/// use io::stdin;
+/// use io::tty::TtyError;
+/// fn main() -> Result<(), TtyError> {
+///     let raw = raw_mode(stdin())?;
+///     let ev = events();
+///     while let Option::Some(e) = ev.next(-1)? {
+///         if describe(e) == "ctrl+c" {
+///             break;
+///         }
+///     }
+///     raw.leave()?;
+///     return;
+/// }
+/// ```
 class Events {
     /// Where bytes come from (a raw-mode terminal, or any stream).
     pub input: Stream,
     /// Whose size a resize reports.
     pub output: Stream,
+    /// How long a lone Esc waits for the rest of a sequence (ms); starts at
+    /// `ESC_TIMEOUT_MS`.
     pub esc_ms: int,
     /// The input ended; `next` returns `None` from now on.
     pub eof: bool,

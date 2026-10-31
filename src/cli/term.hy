@@ -19,24 +19,44 @@ use io::tty::size;
 use string::to_bytes;
 
 /// Whether `s` is a terminal.
+///
+/// # Examples
+///
+/// ```no_run
+/// use cli::term::tty;
+/// use io::stdout;
+/// let styled = tty(stdout());
+/// ```
 fn tty(Stream s) -> bool {
     return is_tty(s);
 }
 
+/// Whether standard input is a terminal (`false` when it is piped or
+/// redirected).
 fn stdin_is_tty() -> bool {
     return is_tty(stdin());
 }
 
+/// Whether standard output is a terminal.
 fn stdout_is_tty() -> bool {
     return is_tty(stdout());
 }
 
+/// Whether standard error is a terminal.
 fn stderr_is_tty() -> bool {
     return is_tty(stderr());
 }
 
 /// `(cols, rows)` of the terminal behind `s` (or behind another standard
 /// stream when `s` is piped), else `(cols, rows)` as given.
+///
+/// # Examples
+///
+/// ```no_run
+/// use cli::term::size_or;
+/// use io::stdout;
+/// let (cols, rows) = size_or(stdout(), 80, 24);
+/// ```
 fn size_or(Stream s, int cols, int rows) -> (int, int) {
     return match size(s) {
         Result::Ok(sz) => sz,
@@ -65,7 +85,9 @@ fn enable_ansi(Stream s) -> bool {
 /// restores the terminal if the program ends (exit, panic, signal) while
 /// still raw.
 class RawMode {
+    /// The terminal stream that was put in raw mode.
     pub input: Stream,
+    /// `true` until `leave` restores the terminal.
     pub active: bool,
 }
 
@@ -78,6 +100,20 @@ fn raw_mode_with(Stream input, bool keep_signals, bool keep_output) -> Result<Ra
 /// Raw mode on `input` with Ctrl-C/Ctrl-Z delivered as keys and output
 /// sent as is (write "\r\n"), as full-screen programs and line editors
 /// want. `Err(TtyError::NotATerminal)` when `input` is not a terminal.
+///
+/// # Examples
+///
+/// ```no_run
+/// use cli::term::raw_mode;
+/// use io::stdin;
+/// use io::tty::TtyError;
+/// fn main() -> Result<(), TtyError> {
+///     let raw = raw_mode(stdin())?;
+///     // ... read keys with cli::events ...
+///     raw.leave()?;
+///     return;
+/// }
+/// ```
 fn raw_mode(Stream input) -> Result<RawMode, TtyError> {
     return raw_mode_with(input, false, false)?;
 }
@@ -92,6 +128,7 @@ impl RawMode {
         return;
     }
 
+    /// Whether the terminal is still in raw mode through this handle.
     pub fn is_active() -> bool {
         return self.active && is_raw(self.input);
     }
@@ -99,7 +136,7 @@ impl RawMode {
 
 /// Wait up to `timeout_ms` (negative: for ever) and read at most `max`
 /// bytes. `Some([])` when the time passed or a resize cut the wait short,
-/// `None` at end of input.
+/// `None` at end of input. Works on any stream, not only a terminal.
 fn read_bytes(Stream s, int max, int timeout_ms) -> Result<Option<Vec<byte>>, TtyError> {
     let buf: Vec<byte> = Vec::new();
     let i = 0;
