@@ -583,7 +583,21 @@ fn char_width(int cp) -> int {
     return 1;
 }
 
-/// Display width of plain text (no escape sequences).
+/// Display width of plain text (no escape sequences), in terminal columns.
+///
+/// Wide characters (CJK, emoji) count 2, combining marks and other
+/// zero-width characters 0, control characters 0. A code point after a
+/// zero-width joiner joins the glyph before it and adds nothing.
+///
+/// # Examples
+///
+/// ```
+/// use cli::width::width;
+/// # use tests::assert;
+/// assert!(width("hello") == 5);
+/// assert!(width("日本") == 4);
+/// assert!(width("e\u{301}") == 1);
+/// ```
 fn width(string s) -> int {
     let b = to_bytes(s);
     let total = 0;
@@ -653,6 +667,17 @@ fn take(string s, int cols) -> string {
 }
 
 /// `s` cut to `cols` columns, ending in `ellipsis` when it was cut.
+/// Text that fits is returned unchanged; an `ellipsis` wider than `cols`
+/// is itself cut.
+///
+/// # Examples
+///
+/// ```
+/// use cli::width::truncate;
+/// # use tests::assert;
+/// assert!(truncate("something went wrong", 12, "…") == "something w…");
+/// assert!(truncate("short", 12, "…") == "short");
+/// ```
 fn truncate(string s, int cols, string ellipsis) -> string {
     if width(s) <= cols {
         return s;
@@ -684,6 +709,18 @@ fn pad_right(string s, int cols) -> string {
     return s + spaces(cols - w);
 }
 
+/// Pad with spaces on the left to `cols` columns (cut if longer), for
+/// right-aligned columns.
+///
+/// # Examples
+///
+/// ```
+/// use cli::width::{pad_left, pad_right};
+/// # use tests::assert;
+/// assert!(pad_left("42", 5) == "   42");
+/// assert!(pad_right("42", 5) == "42   ");
+/// assert!(pad_left("toolong", 4) == "tool");
+/// ```
 fn pad_left(string s, int cols) -> string {
     let w = width(s);
     if w > cols {
@@ -693,6 +730,16 @@ fn pad_left(string s, int cols) -> string {
     return spaces(cols - w) + s;
 }
 
+/// Center `s` in `cols` columns with spaces; an odd leftover space goes on
+/// the right. Text as wide as `cols` or wider is cut like `pad_right`.
+///
+/// # Examples
+///
+/// ```
+/// use cli::width::center;
+/// # use tests::assert;
+/// assert!(center("ab", 5) == " ab  ");
+/// ```
 fn center(string s, int cols) -> string {
     let w = width(s);
     if w >= cols {
@@ -703,7 +750,19 @@ fn center(string s, int cols) -> string {
 }
 
 /// Word-wrap `s` to lines of at most `cols` columns. Existing newlines
-/// are kept; a word longer than a line is split.
+/// are kept; a word longer than a line is split. Runs of spaces collapse
+/// to one, and `cols <= 0` returns `s` as the only line.
+///
+/// # Examples
+///
+/// ```
+/// use cli::width::wrap;
+/// # use tests::assert;
+/// let lines = wrap("the quick brown fox", 10);
+/// assert!(lines.len() == 2);
+/// assert!(lines[0] == "the quick");
+/// assert!(lines[1] == "brown fox");
+/// ```
 fn wrap(string s, int cols) -> Vec<string> {
     let out: Vec<string> = Vec::new();
     if cols <= 0 {
