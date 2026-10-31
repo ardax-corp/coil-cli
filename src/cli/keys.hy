@@ -4,52 +4,79 @@
 // Esc is told apart from the start of a sequence.
 use string::{format, from_bytes};
 
+/// A key on the keyboard, without modifiers (those are in
+/// `KeyEvent.mods`).
 enum Key {
     /// A typed character (code point). Ctrl+letter arrives as the
     /// lower-case letter with `CTRL`.
     Char(int),
+    /// Enter / Return (also Ctrl-J and Ctrl-M).
     Enter,
+    /// Tab (also Ctrl-I).
     Tab,
+    /// Shift-Tab, as terminals send it (`CSI Z`).
     BackTab,
+    /// Backspace (DEL or Ctrl-H).
     Backspace,
+    /// A lone Escape.
     Esc,
+    /// Arrow up.
     Up,
+    /// Arrow down.
     Down,
+    /// Arrow left.
     Left,
+    /// Arrow right.
     Right,
+    /// Home.
     Home,
+    /// End.
     End,
+    /// Page Up.
     PageUp,
+    /// Page Down.
     PageDown,
+    /// Insert.
     Insert,
+    /// Delete (forward delete).
     Delete,
     /// Function key F1-F24.
     F(int),
 }
 
-/// Modifier bits, as in xterm's `1 + mods` parameter.
+/// Shift, a bit of `KeyEvent.mods` and `MouseEvent.mods`. The bits follow
+/// xterm's `1 + mods` parameter.
 const SHIFT = 1;
 
+/// Alt (or Option, or a key sent with an Esc prefix).
 const ALT = 2;
 
+/// Control.
 const CTRL = 4;
 
+/// Meta / Super, where the terminal reports it.
 const META = 8;
 
+/// A key press: the key and the modifier bits held with it.
 class KeyEvent {
+    /// Which key.
     pub key: Key,
+    /// Modifier bits: `SHIFT`, `ALT`, `CTRL`, `META`.
     pub mods: int,
 }
 
 impl KeyEvent {
+    /// Whether Shift was held.
     pub fn shift() -> bool {
         return (self.mods & SHIFT) != 0;
     }
 
+    /// Whether Alt was held.
     pub fn alt() -> bool {
         return (self.mods & ALT) != 0;
     }
 
+    /// Whether Control was held.
     pub fn ctrl() -> bool {
         return (self.mods & CTRL) != 0;
     }
@@ -68,40 +95,80 @@ impl KeyEvent {
     }
 }
 
+/// Which button a mouse report is about.
 enum MouseButton {
+    /// The left (primary) button.
     Left,
+    /// The middle button or wheel click.
     Middle,
+    /// The right button.
     Right,
+    /// Wheel scrolled up.
     WheelUp,
+    /// Wheel scrolled down.
     WheelDown,
+    /// Wheel tilted (or scrolled) left.
     WheelLeft,
+    /// Wheel tilted (or scrolled) right.
     WheelRight,
     /// Motion with no button held.
     NoButton,
 }
 
+/// What happened in a mouse report.
 enum MouseKind {
+    /// A button went down (wheel steps are presses).
     Press,
+    /// A button came up.
     Release,
+    /// Motion with a button held.
     Drag,
+    /// Motion with no button held (only with `enable_mouse_motion`).
     Move,
 }
 
 /// A mouse report; `col` and `row` are 1-based.
 class MouseEvent {
+    /// Press, release, drag or move.
     pub kind: MouseKind,
+    /// Which button.
     pub button: MouseButton,
+    /// 1-based column.
     pub col: int,
+    /// 1-based row.
     pub row: int,
+    /// Modifier bits held (`SHIFT`, `ALT`, `CTRL`).
     pub mods: int,
 }
 
+/// One decoded input event. `describe` gives a short text form.
+///
+/// # Examples
+///
+/// ```
+/// use cli::keys::{Event, Key, decode_all, describe};
+/// use string::to_bytes;
+/// # use tests::assert;
+/// let evs = decode_all(to_bytes("q\e[A\x03"));
+/// assert!(evs.len() == 3);
+/// assert!(describe(evs[1]) == "up");
+/// assert!(describe(evs[2]) == "ctrl+c");
+/// let is_q = match evs[0] {
+///     Event::Key(k) => k.char() == Option::Some(113),
+///     default => false,
+/// };
+/// assert!(is_q);
+/// ```
 enum Event {
+    /// A key press.
     Key(KeyEvent),
+    /// A mouse press, release, drag, move or wheel step.
     Mouse(MouseEvent),
     /// Bracketed paste contents.
     Paste(string),
+    /// The terminal window gained focus (with `enable_focus`).
     FocusIn,
+    /// The terminal window lost focus.
     FocusOut,
     /// A cursor position report (`row`, `col`), the answer to
     /// `cli::ansi::query_cursor()`.
@@ -113,11 +180,13 @@ enum Event {
     Unknown(Vec<byte>),
 }
 
+/// A key event for `k` with modifier bits `mods` (for tests and scripted
+/// input).
 fn key(Key k, int mods) -> Event {
     return Event::Key(new KeyEvent(k, mods));
 }
 
-/// Bytes `b[from..to]`.
+// Bytes `b[from..to]`.
 fn bytes_between(Vec<byte> b, int from, int to) -> Vec<byte> {
     let out: Vec<byte> = Vec::new();
     let i = from;
@@ -162,7 +231,7 @@ fn decode_cp(Vec<byte> b, int i, int n) -> int {
     return cp;
 }
 
-/// Key for a single control or printable byte / code point.
+// Key for a single control or printable byte / code point.
 fn plain_key(int cp, int mods) -> Event {
     if cp == 13 || cp == 10 {
         return key(Key::Enter, mods);
@@ -188,7 +257,7 @@ fn plain_key(int cp, int mods) -> Event {
     return key(Key::Char(cp), mods);
 }
 
-/// Numeric parameters of a CSI body (`1;5` -> [1, 5]); empty fields are 0.
+// Numeric parameters of a CSI body (`1;5` -> [1, 5]); empty fields are 0.
 fn params(Vec<byte> body) -> Vec<int> {
     let out: Vec<int> = Vec::new();
     let cur = 0;
@@ -217,7 +286,7 @@ fn param_or(Vec<int> p, int i, int fallback) -> int {
     return fallback;
 }
 
-/// Modifier bits from xterm's `1 + bits` parameter.
+// Modifier bits from xterm's `1 + bits` parameter.
 fn mods_of(int p) -> int {
     if p <= 1 {
         return 0;
@@ -259,7 +328,7 @@ fn tilde_key(int n) -> Option<Key> {
     };
 }
 
-/// Key for a letter final byte (CSI or SS3).
+// Key for a letter final byte (CSI or SS3).
 fn letter_key(int f) -> Option<Key> {
     return match f {
         65 => Option::Some(Key::Up),
@@ -308,7 +377,7 @@ fn mouse_mods(int cb) -> int {
     return m;
 }
 
-/// A mouse event from the button byte `cb`, position and release flag.
+// A mouse event from the button byte `cb`, position and release flag.
 fn mouse_event(int cb, int col, int row, bool release) -> Event {
     let button = mouse_button(cb);
     let kind = MouseKind::Press;
@@ -323,8 +392,8 @@ fn mouse_event(int cb, int col, int row, bool release) -> Event {
     return Event::Mouse(new MouseEvent(kind, button, col, row, mouse_mods(cb)));
 }
 
-/// Event for a complete CSI sequence: `body` is between `ESC [` and the
-/// final byte `f`.
+// Event for a complete CSI sequence: `body` is between `ESC [` and the
+// final byte `f`.
 fn csi_event(Vec<byte> body, int f, Vec<byte> raw, bool expect_cursor) -> Event {
     let first = -1;
     if body.len() > 0 {
@@ -383,6 +452,26 @@ const PASTE_END_LEN = 6;
 
 /// Incremental decoder. `feed` bytes, then call `next` until it returns
 /// `None`; after a quiet time with bytes still pending call `flush`.
+/// Understands CSI, SS3, SGR and X10 mouse, bracketed paste, focus
+/// reports, xterm modifiers and kitty-style `CSI u` keys; UTF-8 text
+/// becomes `Key::Char` events. `cli::events::Events` drives one over a
+/// terminal.
+///
+/// # Examples
+///
+/// ```
+/// use cli::keys::{decoder, describe};
+/// use string::to_bytes;
+/// # use tests::assert;
+/// let d = decoder();
+/// d.feed(to_bytes("\e"));
+/// assert!(d.next().is_none());
+/// d.feed(to_bytes("[1;5C"));
+/// let e = d.next() ?? panic("no event");
+/// assert!(describe(e) == "ctrl+right");
+/// d.feed(to_bytes("\e"));
+/// assert!(describe(d.flush()[0]) == "esc");
+/// ```
 class Decoder {
     buf: Vec<byte>,
     pos: int,
@@ -391,11 +480,12 @@ class Decoder {
     pub expect_cursor: bool,
 }
 
+/// An empty decoder.
 fn decoder() -> Decoder {
     return new Decoder(Vec::new(), 0, false);
 }
 
-/// Index of the paste end marker `ESC [ 2 0 1 ~` at or after `from`, or -1.
+// Index of the paste end marker `ESC [ 2 0 1 ~` at or after `from`, or -1.
 fn find_paste_end(Vec<byte> b, int from) -> int {
     let i = from;
     while i + PASTE_END_LEN <= b.len() {
@@ -428,6 +518,8 @@ fn text_of(Vec<byte> b) -> string {
 }
 
 impl Decoder {
+    /// Append bytes read from the terminal; decode them with `next` or
+    /// `drain`.
     pub fn feed(Vec<byte> bytes) {
         for c in bytes {
             self.buf.push(c);
@@ -580,7 +672,7 @@ fn decode_all(Vec<byte> bytes) -> Vec<Event> {
     return d.flush();
 }
 
-/// UTF-8 text of code point `cp`.
+/// UTF-8 text of code point `cp` (for `Key::Char`).
 fn cp_string(int cp) -> string {
     let b: Vec<byte> = Vec::new();
     if cp < 128 {
@@ -666,7 +758,9 @@ fn button_name(MouseButton b) -> string {
     };
 }
 
-/// Short text for any event, for logs and tests.
+/// Short text for any event, for logs and tests: keys as `describe_key`
+/// writes them, `mouse(press left 3,4)`, `paste(text)`, `focus-in`,
+/// `cursor(row,col)`, `resize(80x24)`, `unknown(n bytes)`.
 fn describe(Event e) -> string {
     return match e {
         Event::Key(k) => describe_key(k),
@@ -687,6 +781,16 @@ fn describe(Event e) -> string {
 }
 
 /// Whether `e` is the key `spec` (as `describe_key` writes it).
+///
+/// # Examples
+///
+/// ```
+/// use cli::keys::{Key, CTRL, is_key, key};
+/// # use tests::assert;
+/// assert!(is_key(key(Key::Char(99), CTRL), "ctrl+c"));
+/// assert!(is_key(key(Key::Enter, 0), "enter"));
+/// assert!(!is_key(key(Key::Enter, 0), "tab"));
+/// ```
 fn is_key(Event e, string spec) -> bool {
     return match e {
         Event::Key(k) => describe_key(k) == spec,

@@ -6,26 +6,38 @@ use string::{format, to_bytes, slice_bytes};
 use text::Searchable;
 use cli::width::{pad_right, width};
 
+/// `Arg.kind` of a flag: no value, counted when repeated.
 const FLAG = 0;
 
+/// `Arg.kind` of an option taking one value (the last one given wins).
 const OPTION = 1;
 
+/// `Arg.kind` of a repeatable option keeping every value.
 const MULTI = 2;
 
+/// `Arg.kind` of a positional argument.
 const POSITIONAL = 3;
 
+/// `Arg.kind` of the positional that takes every remaining argument.
 const REST = 4;
 
-/// One declared argument.
+/// One declared argument, as the `Command` builders make it.
 class Arg {
+    /// Long name without `--` (also the key in `Matches`).
     pub name: string,
     /// Short letter without `-`, or "".
     pub short: string,
+    /// Placeholder for the value in help (`<FILE>`).
     pub value_name: string,
+    /// One-line description for the help text.
     pub help: string,
+    /// `FLAG`, `OPTION`, `MULTI`, `POSITIONAL` or `REST`.
     pub kind: int,
+    /// Value used when the option is not given (with `has_default`).
     pub default: string,
+    /// Whether `default` applies.
     pub has_default: bool,
+    /// Whether parsing fails without it.
     pub required: bool,
 }
 
@@ -40,7 +52,8 @@ enum Parsed {
     Version(string),
 }
 
-/// A usage mistake (exit 2).
+/// A usage mistake (exit 2). `error_message` turns one into text for
+/// stderr.
 enum ArgError {
     /// An option nobody declared, with a suggestion or "".
     UnknownOption(string, string),
@@ -56,12 +69,16 @@ enum ArgError {
     FlagValue(string),
 }
 
-/// The parse result for one command (and its chosen subcommand).
+/// The parse result for one command (and its chosen subcommand). Look
+/// values up by the argument's long name.
 class Matches {
+    /// Name of the command these matches are for.
     pub command: string,
     counts: HashMap<string, int>,
     values: HashMap<string, Vec<string>>,
+    /// The chosen subcommand's name, or "" (see `subcommand_name`).
     pub sub_name: string,
+    /// The chosen subcommand's matches, zero or one (see `subcommand`).
     pub sub: Vec<Matches>,
 }
 
@@ -86,6 +103,7 @@ impl Matches {
         return Option::Some(vs[vs.len() - 1]);
     }
 
+    /// `value(name)`, or `fallback` when there is none.
     pub fn value_or(string name, string fallback) -> string {
         return self.value(name) ?? fallback;
     }
@@ -108,10 +126,12 @@ impl Matches {
         return Option::Some(self.sub[0]);
     }
 
+    /// Record one more occurrence of `name` (used by the parser).
     pub fn add_count(string name) {
         self.counts.insert(name, self.count(name) + 1);
     }
 
+    /// Record a value for `name` (used by the parser).
     pub fn add_value(string name, string v) {
         let vs = self.values.get_or(name, Vec::new());
         vs.push(v);
@@ -123,17 +143,46 @@ fn new_matches(string command) -> Matches {
     return new Matches(command, HashMap::new(), HashMap::new(), "", Vec::new());
 }
 
-/// A command: its arguments, subcommands, and help text.
+/// A command: its arguments, subcommands, and help text. Build it with
+/// `command` and the chained declarations, then `parse` the arguments.
+///
+/// # Examples
+///
+/// ```
+/// use cli::args::{Parsed, command};
+/// # use tests::assert;
+/// let cmd = command("greet", "Say hello")
+///     .version("1.0")
+///     .flag("verbose", "v", "Say more")
+///     .option_default("name", "n", "NAME", "Who to greet", "world")
+///     .rest("extra", "Anything else", false);
+/// let parsed = cmd.parse(["-vv", "--name=Ada", "x", "y"]).ok() ?? panic("bad args");
+/// let m = match parsed {
+///     Parsed::Matches(m) => m,
+///     default => panic("help or version"),
+/// };
+/// assert!(m.count("verbose") == 2);
+/// assert!(m.value_or("name", "") == "Ada");
+/// assert!(m.values("extra").len() == 2);
+/// assert!(cmd.usage() == "Usage: greet [options] [extra]...");
+/// ```
 class Command {
+    /// The command's name.
     pub name: string,
+    /// One-line description, the first line of the help.
     pub about: string,
+    /// Version string; "" leaves `-V` / `--version` out.
     pub version: string,
+    /// Declared arguments, in order.
     pub args: Vec<Arg>,
+    /// Declared subcommands.
     pub commands: Vec<Command>,
     /// The program name shown in usage lines ("tool sub").
     pub path: string,
 }
 
+/// A command named `name` with the description `about` and no
+/// arguments yet.
 fn command(string name, string about) -> Command {
     return new Command(name, about, "", Vec::new(), Vec::new(), name);
 }
@@ -308,6 +357,7 @@ impl Command {
         return self.add(a);
     }
 
+    /// An optional positional argument, filled in declaration order.
     pub fn optional_positional(string name, string help) -> Command {
         return self.add(new_arg(name, "", name, help, POSITIONAL));
     }
@@ -326,6 +376,7 @@ impl Command {
         return self;
     }
 
+    /// The flag or option declared with long name `name`.
     pub fn find_long(string name) -> Option<Arg> {
         for a in self.args {
             if a.kind <= MULTI && a.name == name {
@@ -335,6 +386,7 @@ impl Command {
         return Option::None;
     }
 
+    /// The flag or option declared with short letter `s`.
     pub fn find_short(string s) -> Option<Arg> {
         for a in self.args {
             if a.kind <= MULTI && a.short == s {
@@ -344,6 +396,8 @@ impl Command {
         return Option::None;
     }
 
+    /// Every long option name, including `help` (and `version` when set),
+    /// for suggestions.
     pub fn long_names() -> Vec<string> {
         let out: Vec<string> = Vec::new();
         for a in self.args {
@@ -358,6 +412,7 @@ impl Command {
         return out;
     }
 
+    /// Names of the subcommands.
     pub fn command_names() -> Vec<string> {
         let out: Vec<string> = Vec::new();
         for c in self.commands {
@@ -366,6 +421,7 @@ impl Command {
         return out;
     }
 
+    /// Whether any flag or option is declared.
     pub fn has_options() -> bool {
         for a in self.args {
             if a.kind <= MULTI {
@@ -431,6 +487,8 @@ impl Command {
         return out;
     }
 
+    /// Record option `a` found at `argv[i]` (value inline or in the next
+    /// argument) and return the index after it (used by the parser).
     pub fn take_option(
         Arg a,
         Matches m,
@@ -459,6 +517,7 @@ impl Command {
         return i + 2;
     }
 
+    /// Whether any positional or rest argument is declared.
     pub fn accepts_positionals() -> bool {
         for a in self.args {
             if a.kind >= POSITIONAL {
@@ -468,6 +527,8 @@ impl Command {
         return false;
     }
 
+    /// Assign `positionals` to the declared positional arguments in order
+    /// (used by the parser). Errors on a missing required one or a leftover.
     pub fn fill_positionals(Matches m, Vec<string> positionals) -> Result<(), ArgError> {
         let k = 0;
         for a in self.args {
@@ -503,6 +564,7 @@ impl Command {
         return;
     }
 
+    /// Check required options and fill in defaults (used by the parser).
     pub fn finish(Matches m) -> Result<(), ArgError> {
         for a in self.args {
             if a.kind == OPTION && m.count(a.name) == 0 {
@@ -520,6 +582,8 @@ impl Command {
 
 // A free function: a method calling itself on another `Command` sees its
 // return type unqualified (coil-lang#1980).
+/// Parse `argv` (without the program name) against `cmd`; the same as
+/// `cmd.parse(argv)`.
 fn parse_args(Command cmd, Vec<string> argv) -> Result<Parsed, ArgError> {
     let m = new_matches(cmd.name);
     let positionals: Vec<string> = Vec::new();
@@ -650,6 +714,20 @@ impl Command {
 }
 
 /// Text for an error, with the usage line and a pointer to `--help`.
+///
+/// # Examples
+///
+/// ```
+/// use cli::args::{ArgError, command, error_message};
+/// use text::Searchable;
+/// # use tests::assert;
+/// let cmd = command("tool", "").flag("verbose", "v", "");
+/// let err = match cmd.parse(["--verbos"]) {
+///     Result::Err(e) => e,
+///     Result::Ok(_) => panic("parsed"),
+/// };
+/// assert!(error_message(cmd, err).starts_with("error: unexpected option '--verbos' (did you mean '--verbose'?)"));
+/// ```
 fn error_message(Command c, ArgError e) -> string {
     let msg = match e {
         ArgError::UnknownOption(o, s) => {

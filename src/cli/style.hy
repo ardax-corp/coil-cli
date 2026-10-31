@@ -3,6 +3,19 @@
 use string::{format, to_bytes, from_bytes};
 use cli::color::{ColorLevel, color_level_from_env};
 
+/// A terminal colour, in one of the forms an SGR escape can name.
+/// `downgrade` (and painting at a `ColorLevel`) reduces it to what the
+/// terminal can show. Compare colours with `color_eq`.
+///
+/// # Examples
+///
+/// ```
+/// use cli::style::{Color, color_eq, hex, rgb};
+/// # use tests::assert;
+/// assert!(color_eq(rgb(300, 0, -5), Color::Rgb(255, 0, 0)));
+/// let teal = hex("#008080") ?? Color::Default;
+/// assert!(color_eq(teal, Color::Rgb(0, 128, 128)));
+/// ```
 enum Color {
     /// The terminal's own foreground / background.
     Default,
@@ -14,70 +27,87 @@ enum Color {
     Rgb(int, int, int),
 }
 
+/// Standard black (`Color::Ansi(0)`).
 fn black() -> Color {
     return Color::Ansi(0);
 }
 
+/// Standard red (`Color::Ansi(1)`).
 fn red() -> Color {
     return Color::Ansi(1);
 }
 
+/// Standard green (`Color::Ansi(2)`).
 fn green() -> Color {
     return Color::Ansi(2);
 }
 
+/// Standard yellow (`Color::Ansi(3)`).
 fn yellow() -> Color {
     return Color::Ansi(3);
 }
 
+/// Standard blue (`Color::Ansi(4)`).
 fn blue() -> Color {
     return Color::Ansi(4);
 }
 
+/// Standard magenta (`Color::Ansi(5)`).
 fn magenta() -> Color {
     return Color::Ansi(5);
 }
 
+/// Standard cyan (`Color::Ansi(6)`).
 fn cyan() -> Color {
     return Color::Ansi(6);
 }
 
+/// Standard white (`Color::Ansi(7)`).
 fn white() -> Color {
     return Color::Ansi(7);
 }
 
+/// Bright black (`Color::Ansi(8)`).
 fn bright_black() -> Color {
     return Color::Ansi(8);
 }
 
+/// Bright red (`Color::Ansi(9)`).
 fn bright_red() -> Color {
     return Color::Ansi(9);
 }
 
+/// Bright green (`Color::Ansi(10)`).
 fn bright_green() -> Color {
     return Color::Ansi(10);
 }
 
+/// Bright yellow (`Color::Ansi(11)`).
 fn bright_yellow() -> Color {
     return Color::Ansi(11);
 }
 
+/// Bright blue (`Color::Ansi(12)`).
 fn bright_blue() -> Color {
     return Color::Ansi(12);
 }
 
+/// Bright magenta (`Color::Ansi(13)`).
 fn bright_magenta() -> Color {
     return Color::Ansi(13);
 }
 
+/// Bright cyan (`Color::Ansi(14)`).
 fn bright_cyan() -> Color {
     return Color::Ansi(14);
 }
 
+/// Bright white (`Color::Ansi(15)`).
 fn bright_white() -> Color {
     return Color::Ansi(15);
 }
 
+/// 24-bit colour; each channel is clamped to 0-255.
 fn rgb(int r, int g, int b) -> Color {
     return Color::Rgb(clamp(r), clamp(g), clamp(b));
 }
@@ -106,7 +136,8 @@ fn hex_digit(byte c) -> int {
     return -1;
 }
 
-/// `#rrggbb`, `rrggbb`, `#rgb` or `rgb`.
+/// An RGB colour from `#rrggbb`, `rrggbb`, `#rgb` or `rgb` (either case).
+/// `None` for any other length or a non-hex digit.
 fn hex(string s) -> Option<Color> {
     let b = to_bytes(s);
     let start = 0;
@@ -133,91 +164,133 @@ fn hex(string s) -> Option<Color> {
     return Option::None;
 }
 
+/// Bold (SGR 1). An attribute bit of `Style.attrs`, for `with_attr` and `has`.
 const BOLD = 1;
 
+/// Dim / faint (SGR 2).
 const DIM = 2;
 
+/// Italic (SGR 3).
 const ITALIC = 4;
 
+/// Underline (SGR 4).
 const UNDERLINE = 8;
 
+/// Blink (SGR 5).
 const BLINK = 16;
 
+/// Reverse video: swap foreground and background (SGR 7).
 const REVERSE = 32;
 
+/// Hidden text (SGR 8).
 const HIDDEN = 64;
 
+/// Strikethrough (SGR 9).
 const STRIKE = 128;
 
 /// Foreground, background and attributes. Builder methods return a new
 /// `Style`, so a shared style is never changed under its users.
+///
+/// Start from `plain`, `fg` or `bg` and chain the builders; turn a style
+/// into text with `Painter.paint` or `sgr`.
+///
+/// # Examples
+///
+/// ```
+/// use cli::style::{fg, red, blue, sgr, BOLD};
+/// use cli::color::ColorLevel;
+/// # use tests::assert;
+/// let s = fg(red()).bg(blue()).bold();
+/// assert!(s.has(BOLD));
+/// assert!(sgr(s, ColorLevel::Basic) == "\e[1;31;44m");
+/// ```
 class Style {
+    /// Foreground colour (`Color::Default` leaves it alone).
     pub fg: Color,
+    /// Background colour (`Color::Default` leaves it alone).
     pub bg: Color,
+    /// Attribute bits: `BOLD`, `DIM`, `ITALIC`, `UNDERLINE`, `BLINK`,
+    /// `REVERSE`, `HIDDEN`, `STRIKE`, or-ed together.
     pub attrs: int,
 }
 
+/// No colours and no attributes: the terminal's default look.
 fn plain() -> Style {
     return new Style(Color::Default, Color::Default, 0);
 }
 
+/// A style with foreground `c` and nothing else set.
 fn fg(Color c) -> Style {
     return new Style(c, Color::Default, 0);
 }
 
+/// A style with background `c` and nothing else set.
 fn bg(Color c) -> Style {
     return new Style(Color::Default, c, 0);
 }
 
 impl Style {
+    /// This style with the attribute bit(s) `bit` added.
     pub fn with_attr(int bit) -> Style {
         return new Style(self.fg, self.bg, self.attrs | bit);
     }
 
+    /// This style with foreground `c`.
     pub fn fg(Color c) -> Style {
         return new Style(c, self.bg, self.attrs);
     }
 
+    /// This style with background `c`.
     pub fn bg(Color c) -> Style {
         return new Style(self.fg, c, self.attrs);
     }
 
+    /// This style, bold.
     pub fn bold() -> Style {
         return self.with_attr(BOLD);
     }
 
+    /// This style, dim.
     pub fn dim() -> Style {
         return self.with_attr(DIM);
     }
 
+    /// This style, italic.
     pub fn italic() -> Style {
         return self.with_attr(ITALIC);
     }
 
+    /// This style, underlined.
     pub fn underline() -> Style {
         return self.with_attr(UNDERLINE);
     }
 
+    /// This style, blinking.
     pub fn blink() -> Style {
         return self.with_attr(BLINK);
     }
 
+    /// This style in reverse video.
     pub fn reverse() -> Style {
         return self.with_attr(REVERSE);
     }
 
+    /// This style, hidden.
     pub fn hidden() -> Style {
         return self.with_attr(HIDDEN);
     }
 
+    /// This style, struck through.
     pub fn strike() -> Style {
         return self.with_attr(STRIKE);
     }
 
+    /// Whether any of the attribute bits in `bit` is set.
     pub fn has(int bit) -> bool {
         return (self.attrs & bit) != 0;
     }
 
+    /// Whether nothing is set: default colours and no attributes.
     pub fn is_plain() -> bool {
         return self.attrs == 0 && is_default(self.fg) && is_default(self.bg);
     }
@@ -236,6 +309,7 @@ impl Style {
         return new Style(f, b, self.attrs | other.attrs);
     }
 
+    /// Whether both styles have the same colours and attributes.
     pub fn eq(Style other) -> bool {
         return self.attrs == other.attrs &&
                color_eq(self.fg, other.fg) &&
@@ -250,6 +324,8 @@ fn is_default(Color c) -> bool {
     };
 }
 
+/// Whether `a` and `b` are the same colour in the same form (`Ansi(1)`
+/// and its RGB value are different).
 fn color_eq(Color a, Color b) -> bool {
     return match a {
         Color::Default => is_default(b),
@@ -297,7 +373,7 @@ fn cube_level(int i) -> int {
     return 55 + i * 40;
 }
 
-/// RGB of a 256-palette index.
+/// RGB of a 256-palette index, using the xterm defaults for 0-15.
 fn indexed_rgb(int i) -> (int, int, int) {
     if i < 16 {
         return ansi_rgb(i);
@@ -365,7 +441,20 @@ fn rgb_to_ansi(int r, int g, int b) -> int {
     return best;
 }
 
-/// `c` reduced to what `level` can show. `ColorLevel::None` gives `Default`.
+/// `c` reduced to what `level` can show: RGB becomes the nearest palette
+/// or standard colour, palette entries above 15 the nearest standard one.
+/// `ColorLevel::None` gives `Default`.
+///
+/// # Examples
+///
+/// ```
+/// use cli::style::{Color, color_eq, downgrade};
+/// use cli::color::ColorLevel;
+/// # use tests::assert;
+/// let orange = Color::Rgb(255, 135, 0);
+/// assert!(color_eq(downgrade(orange, ColorLevel::Ansi256), Color::Indexed(208)));
+/// assert!(color_eq(downgrade(orange, ColorLevel::None), Color::Default));
+/// ```
 fn downgrade(Color c, ColorLevel level) -> Color {
     if level == ColorLevel::None {
         return Color::Default;
@@ -461,9 +550,10 @@ fn sgr(Style s, ColorLevel level) -> string {
     return "\e[" + p + "m";
 }
 
-/// `text` in style `s`, followed by a reset. At `ColorLevel::None`, or
-/// with nothing to set, `text` is returned as is, so piped output stays
-/// clean.
+/// `text` in style `s` at `level`, followed by a reset. At
+/// `ColorLevel::None`, or with nothing to set, `text` is returned as is,
+/// so piped output stays clean. `Painter` does the same with a stored
+/// level.
 fn paint_at(Style s, string text, ColorLevel level) -> string {
     if level == ColorLevel::None {
         return text;
@@ -475,13 +565,29 @@ fn paint_at(Style s, string text, ColorLevel level) -> string {
     return on + text + "\e[0m";
 }
 
-/// Paints at a fixed colour level. `Painter::from_env(tty)` reads the
-/// environment once (needs `--allow-env`).
+/// Paints text at a fixed colour level. `Painter::from_env(tty)` reads
+/// the environment once (needs `--allow-env`); `Painter::at` takes the
+/// level as given, which keeps tests deterministic.
+///
+/// # Examples
+///
+/// ```
+/// use cli::style::{Painter, fg, red, strip};
+/// use cli::color::ColorLevel;
+/// # use tests::assert;
+/// let p = Painter::at(ColorLevel::Basic);
+/// let line = p.paint(fg(red()).bold(), "error");
+/// assert!(line == "\e[1;31merror\e[0m");
+/// assert!(strip(line) == "error");
+/// assert!(Painter::at(ColorLevel::None).bold("ok") == "ok");
+/// ```
 class Painter {
+    /// The colour level everything is painted at.
     pub level: ColorLevel,
 }
 
 impl Painter {
+    /// A painter at `level`.
     pub static fn at(ColorLevel level) -> Painter {
         return new Painter(level);
     }
@@ -492,30 +598,36 @@ impl Painter {
         return new Painter(color_level_from_env(tty));
     }
 
+    /// Whether this painter writes any escapes (`level` is not `None`).
     pub fn enabled() -> bool {
         return self.level != ColorLevel::None;
     }
 
+    /// `text` in style `s`, followed by a reset (see `paint_at`).
     pub fn paint(Style s, string text) -> string {
         return paint_at(s, text, self.level);
     }
 
     // Not `fg`: a 2-arg method named like the free `fg` breaks calls to
     // it (coil-lang#1981).
+    /// `text` in foreground colour `c`.
     pub fn color(Color c, string text) -> string {
         return paint_at(fg(c), text, self.level);
     }
 
+    /// `text` in bold.
     pub fn bold(string text) -> string {
         return paint_at(plain().bold(), text, self.level);
     }
 
+    /// `text` dimmed.
     pub fn dim(string text) -> string {
         return paint_at(plain().dim(), text, self.level);
     }
 }
 
-/// `text` without escape sequences (CSI, OSC, and two-byte ESC forms).
+/// `text` without escape sequences (CSI, OSC, DCS, APC and two-byte ESC
+/// forms), for measuring or logging styled output.
 fn strip(string text) -> string {
     let b = to_bytes(text);
     let out: Vec<byte> = Vec::new();
