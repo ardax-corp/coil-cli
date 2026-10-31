@@ -35,6 +35,16 @@ use cli::keys::{KeyEvent, describe_key, cp_string};
 
 /// `y`/`yes`/`n`/`no` (any case); an empty answer is `fallback`; anything
 /// else is `None` (ask again).
+///
+/// # Examples
+///
+/// ```
+/// use cli::prompt::parse_confirm;
+/// # use tests::assert;
+/// assert!(parse_confirm("YES", false) == Option::Some(true));
+/// assert!(parse_confirm("", true) == Option::Some(true));
+/// assert!(parse_confirm("maybe", true).is_none());
+/// ```
 fn parse_confirm(string answer, bool fallback) -> Option<bool> {
     let a = answer.trim().to_lower();
     if a == "" {
@@ -57,7 +67,8 @@ fn confirm_label(string question, bool fallback) -> string {
     return question + " [y/N] ";
 }
 
-/// Case-insensitive subsequence match: "cmt" matches "commit".
+/// Case-insensitive subsequence match: "cmt" matches "commit". The empty
+/// pattern matches everything.
 fn fuzzy_match(string pattern, string text) -> bool {
     let p = to_bytes(pattern.to_lower());
     let t = to_bytes(text.to_lower());
@@ -70,45 +81,85 @@ fn fuzzy_match(string pattern, string text) -> bool {
     return i == p.len();
 }
 
+/// One action on a `Select` list, applied with `Select.apply`.
+/// `select_key_for` maps input events to these.
 enum SelectKey {
+    /// Cursor up one row (wraps to the last).
     Up,
+    /// Cursor down one row (wraps to the first).
     Down,
+    /// Cursor up one page (`height` rows).
     PageUp,
+    /// Cursor down one page.
     PageDown,
+    /// Cursor to the first row.
     Home,
+    /// Cursor to the last row.
     End,
     /// Toggle the item under the cursor (multi-select).
     Toggle,
+    /// Check every visible item, or uncheck them all when all are checked
+    /// (multi-select).
     ToggleAll,
     /// Type into the filter.
     FilterChar(string),
+    /// Delete the last character of the filter.
     FilterBackspace,
+    /// Accept the choice (single-select needs a visible item).
     Submit,
+    /// Abandon the choice.
     Cancel,
 }
 
+/// What the caller should do after `Select.apply`.
 #[repr(int)]
 #[derive(Eq)]
 enum SelectOutcome {
+    /// Keep going: redraw and read the next key.
     Continue = 0,
+    /// The choice was accepted; read it with `chosen` or `current`.
     Submit = 1,
+    /// The choice was abandoned.
     Cancel = 2,
 }
 
-/// A scrolling, filterable list. `cursor` and `offset` index the
-/// filtered list (`visible`).
+/// A scrolling, filterable list: the model behind `select` and
+/// `multi_select`, with no terminal attached. `cursor` and `offset` index
+/// the filtered list (`visible`). Make one with `select_model`, feed it
+/// `SelectKey`s and draw `lines`.
+///
+/// # Examples
+///
+/// ```
+/// use cli::prompt::{SelectKey, SelectOutcome, select_model};
+/// # use tests::assert;
+/// let s = select_model(["build", "commit", "push"], false, 5);
+/// s.apply(SelectKey::FilterChar("cm"));
+/// assert!(s.visible.len() == 1);
+/// assert!(s.apply(SelectKey::Submit) == SelectOutcome::Submit);
+/// assert!(s.current() == 1);
+/// ```
 class Select {
+    /// Every item, filtered or not.
     pub items: Vec<string>,
+    /// Whether several items can be checked.
     pub multi: bool,
+    /// Per item in `items`: whether it is checked (multi-select).
     pub checked: Vec<bool>,
+    /// The text typed so far; items fuzzy-match it.
     pub filter: string,
+    /// Indices into `items` of the items the filter lets through.
     pub visible: Vec<int>,
+    /// Cursor row, an index into `visible`.
     pub cursor: int,
+    /// First row of `visible` shown (scroll position).
     pub offset: int,
     /// Rows the list may use.
     pub height: int,
 }
 
+/// A `Select` over `items`, single or `multi`, showing at most `height`
+/// rows (at least 1), with nothing checked and no filter.
 fn select_model(Vec<string> items, bool multi, int height) -> Select {
     let checked: Vec<bool> = Vec::new();
     let visible: Vec<int> = Vec::new();
@@ -185,6 +236,8 @@ impl Select {
         return out;
     }
 
+    /// Apply one action and keep the cursor in view. Typing into the filter
+    /// moves the cursor back to the top.
     pub fn apply(SelectKey k) -> SelectOutcome {
         let n = self.visible.len();
         match k {
@@ -415,6 +468,21 @@ fn select_key_for_key(KeyEvent k) -> Option<SelectKey> {
 /// Ask a yes/no question. On a terminal one key answers (y / n, Enter for
 /// `fallback`); otherwise a line is read. `None` when cancelled (Ctrl-C,
 /// Esc) or at end of input.
+///
+/// # Examples
+///
+/// ```no_run
+/// use cli::prompt::{confirm, input, select};
+/// use io::tty::TtyError;
+/// fn main() -> Result<(), TtyError> {
+///     let name = input("Name?", "world")? ?? "world";
+///     let shade = select("Colour?", ["red", "green", "blue"])? ?? 0;
+///     if confirm("Save?", true)? ?? false {
+///         // ...
+///     }
+///     return;
+/// }
+/// ```
 fn confirm(string question, bool fallback) -> Result<Option<bool>, TtyError> {
     if !is_tty(stdin()) {
         return Option::Some(confirm_line(stdin(), stdout(), question, fallback));
