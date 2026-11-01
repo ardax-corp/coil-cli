@@ -1,7 +1,7 @@
 // Prompts and a small REPL. Pipe answers in to see the line fallbacks:
 //
-//   coil --root <stdlib>/src --root src examples/ask.hy
-//   printf 'y\nAda\n2\n1 3\nquit\n' | coil ... examples/ask.hy
+//   coil --root <stdlib>/src --root src examples/ask.coil
+//   printf 'y\nAda\n2\n1 3\nquit\n' | coil ... examples/ask.coil
 use io::stdout;
 use io::sync::write_all;
 use string::{format, to_bytes};

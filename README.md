@@ -36,7 +36,7 @@ fn main() {
 ```
 
 ```bash
-coil --root ../coil-stdlib/src --root ../coil-cli/src main.hy
+coil --root ../coil-stdlib/src --root ../coil-cli/src main.coil
 ```
 
 Every public item has `///` docs with examples; the pure modules' examples run as doc tests.
@@ -62,12 +62,12 @@ Every public item has `///` docs with examples; the pure modules' examples run a
 
 | File | Shows |
 |------|-------|
-| [examples/hello.hy](examples/hello.hy) | `cli::args` with help and errors, `Painter` colours, a progress bar |
-| [examples/ask.hy](examples/ask.hy) | `confirm`, `input`, `select`, `multi_select` and a `read_line` REPL; pipe answers in to see the fallbacks |
-| [examples/bounce.hy](examples/bounce.hy) | a full-screen program: alternate screen, `Screen` diff rendering, timed `Events`, resizes |
+| [examples/hello.coil](examples/hello.coil) | `cli::args` with help and errors, `Painter` colours, a progress bar |
+| [examples/ask.coil](examples/ask.coil) | `confirm`, `input`, `select`, `multi_select` and a `read_line` REPL; pipe answers in to see the fallbacks |
+| [examples/bounce.coil](examples/bounce.coil) | a full-screen program: alternate screen, `Screen` diff rendering, timed `Events`, resizes |
 
 ```bash
-coil --allow-env --allow-exit --root ../coil-stdlib/src --root src examples/hello.hy -- --name Ada -n 3
+coil --allow-env --allow-exit --root ../coil-stdlib/src --root src examples/hello.coil -- --name Ada -n 3
 make examples COIL_ROOTS='--root ../coil-stdlib/src'   # compile them all
 ```
 

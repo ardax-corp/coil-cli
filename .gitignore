@@ -1,3 +1,4 @@
+*.ccoil
 *.hyc
 target/
 coil.lock

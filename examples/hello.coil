@@ -1,6 +1,6 @@
 // Arguments, colour and a progress bar.
 //
-//   coil --allow-env --allow-exit --root <stdlib>/src --root src examples/hello.hy -- --name Ada -n 3
+//   coil --allow-env --allow-exit --root <stdlib>/src --root src examples/hello.coil -- --name Ada -n 3
 use env::{args, exit};
 use io::stdout;
 use io::stderr;
