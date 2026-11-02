@@ -128,7 +128,7 @@ impl Matches {
 
     /// Record one more occurrence of `name` (used by the parser).
     pub fn add_count(string name) {
-        self.counts.upsert(name, 1, fn (int n) => n + 1);
+        let _ = self.counts.entry(name).and_modify(fn (int n) => n + 1).or_insert(1);
     }
 
     /// Record a value for `name` (used by the parser).
